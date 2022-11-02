@@ -16,6 +16,7 @@ def display(img, fps=24.99, algo_name="TEST NAME LONGER"):
     name_scale = 1
 
     c = img.shape[1] * .03 * 1/22
+    thickness = name_thck = max(round(c*2), 1)
     fontScale = fontScale * c
     name_scale = name_scale * c
 
@@ -55,6 +56,7 @@ if __name__ == "__main__":
     # image_path = os.path.join(images_dir, "000001 - Copy (2).jpg")
 
     img = cv2.imread(image_path)
+    img = cv2.resize(img, (250, 250))
 
     display(img)
 
