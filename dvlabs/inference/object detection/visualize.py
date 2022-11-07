@@ -2,7 +2,7 @@ import os
 import cv2
 
 
-def display(img, fps=24.99, lines=["TEST NAME LONGER",]):
+def display(img, fps=24.99, lines=["TEST NAME LONGER",], pos="tl"):
 
     fps_str = "FPS : " + str(round(fps, 2))
 
@@ -22,9 +22,8 @@ def display(img, fps=24.99, lines=["TEST NAME LONGER",]):
 
     (fps_size, fps_bline) = cv2.getTextSize("FPS : " + str(999.99), font, fontScale, thickness)
 
-    offset = int(max(img.shape) * 0.01)
+    offset_x = offset_y = int(max(img.shape) * 0.01)
     margin = int(max(img.shape) * 0.02)
-    nextline = offset
 
     l_sizes = []
 
@@ -42,9 +41,22 @@ def display(img, fps=24.99, lines=["TEST NAME LONGER",]):
 
     rec_w = max(max_l_width, fps_size[0]) + margin
     rec_h = sum_l_height + fps_size[1] + margin * (len(l_sizes)+2)
-    cv2.rectangle(img, [offset, offset, rec_w, rec_h], (0, 255, 255), -1)
 
-    x_fps = int(offset + (rec_w / 2) - (fps_size[0] / 2))
+    if pos == "tl":
+        pass
+    elif pos == "tr":
+        offset_x = img.shape[1] - rec_w - offset_x
+    elif pos == "bl":
+        offset_y = img.shape[0] - rec_h - offset_y
+    elif pos == "br":
+        offset_x = img.shape[1] - rec_w - offset_x
+        offset_y = img.shape[0] - rec_h - offset_y
+
+    nextline = offset_y
+
+    cv2.rectangle(img, [offset_x, offset_y, rec_w, rec_h], (0, 255, 255), -1)
+
+    x_fps = int(offset_x + (rec_w / 2) - (fps_size[0] / 2))
     nextline = nextline + margin
     y_fps = nextline + fps_size[1]
     nextline = y_fps + margin
@@ -52,7 +64,7 @@ def display(img, fps=24.99, lines=["TEST NAME LONGER",]):
                 cv2.LINE_AA)
 
     for idx, line in enumerate(lines):
-        x_line = int(offset + (rec_w / 2) - (l_sizes[idx][0] / 2))
+        x_line = int(offset_x + (rec_w / 2) - (l_sizes[idx][0] / 2))
 
         y_line = nextline + l_sizes[idx][1]
         nextline = y_line + margin
@@ -70,10 +82,10 @@ if __name__ == "__main__":
     # image_path = os.path.join(images_dir, "000001 - Copy (2).jpg")
 
     img = cv2.imread(image_path)
-    img = cv2.resize(img, (250, 250))
+    # img = cv2.resize(img, (250, 250))
 
     # display(img)
-    display(img, lines=["test line1", "line2", "line-3"])
+    display(img, lines=["test line1", "line2", "line-3"], pos="br")
 
     cv2.imwrite("test.jpg", img)
     cv2.imshow("test", img)
