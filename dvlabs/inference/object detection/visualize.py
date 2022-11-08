@@ -13,7 +13,7 @@ def display(img, fps=24.99, lines=["TEST NAME LONGER",], pos="tl", bboxes=[]):
 
     line_scale = 1
 
-    c = img.shape[1] * .03 * 1/22
+    c = round(max(img.shape)) * .03 * 1/22
     thickness = max(round(c*2), 1)
     fps_scale = fps_scale * c
     line_scale = line_scale * c
