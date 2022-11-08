@@ -2,7 +2,7 @@ import os
 import cv2
 
 
-def display(img, fps=24.99, lines=["TEST NAME LONGER",], pos="tl"):
+def display(img, fps=24.99, lines=["TEST NAME LONGER",], pos="tl", bboxes=[]):
 
     fps_str = "FPS : " + str(round(fps, 2))
 
@@ -52,6 +52,10 @@ def display(img, fps=24.99, lines=["TEST NAME LONGER",], pos="tl"):
         offset_x = img.shape[1] - rec_w - offset_x
         offset_y = img.shape[0] - rec_h - offset_y
 
+    if len(bboxes) is not 0:
+        for box in bboxes:
+            cv2.rectangle(img, box, (0, 255, 0), thickness)
+
     nextline = offset_y
 
     cv2.rectangle(img, [offset_x, offset_y, rec_w, rec_h], (0, 255, 255), -1)
@@ -85,7 +89,7 @@ if __name__ == "__main__":
     # img = cv2.resize(img, (250, 250))
 
     # display(img)
-    display(img, lines=["test line1", "line2", "line-3"], pos="br")
+    display(img, lines=["test line1", "line2", "line-3"], pos="br", bboxes=[[50, 50, 150, 150], [250, 250, 175, 175]])
 
     cv2.imwrite("test.jpg", img)
     cv2.imshow("test", img)
