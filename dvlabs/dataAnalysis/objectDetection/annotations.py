@@ -38,15 +38,9 @@ class Annotations:
 
                 anon_file = os.path.splitext(img_name)[0] + '.txt'
 
-                try:
-                    img = cv2.imread(os.path.join(path, img_name))
-
-                    img_height = img.shape[0]
-                    img_width = img.shape[1]
-                    img_depth = img.shape[2]
-                except:
-                    img_height = None
-                    img_width = None
+                img, (img_height, img_width, img_depth) = self.read_img(
+                    os.path.join(path, img_name)
+                )
 
                 read_objects = []
 
@@ -107,17 +101,15 @@ class Annotations:
 
                     box_width, box_height = box_right - box_left, box_bottom - box_top
 
-                    center_x_ratio, center_y_ratio = float((box_left + int(box_width / 2)) / img_width), float(
-                        (box_top + int(box_height / 2)) / img_height)
-                    width_ratio, height_ratio = float(box_width / img_width), float(box_height / img_height)
+                    norm_anno = self.normalize_annotations(img_width, img_height, box_left, box_top, box_width, box_height)
 
                     read_objects.append(
                         {
                             'class': class_name,
-                            'cx': center_x_ratio,
-                            'cy': center_y_ratio,
-                            'w': width_ratio,
-                            'h': height_ratio,
+                            'cx': norm_anno[0],
+                            'cy': norm_anno[1],
+                            'w': norm_anno[2],
+                            'h': norm_anno[3],
                         }
                     )
 
@@ -162,21 +154,34 @@ class Annotations:
 
                 img_width, img_height = annotations[img_name]['width'], annotations[img_name]['height'],
 
-                center_x_ratio, center_y_ratio = float((box_left + int(box_width / 2)) / img_width), float(
-                    (box_top + int(box_height / 2)) / img_height)
-                width_ratio, height_ratio = float(box_width / img_width), float(box_height / img_height)
+                norm_anno = self.normalize_annotations(img_width, img_height, box_left, box_top, box_width, box_height)
 
                 annotations[img_name]['objects'].append(
                     {
                         'class': class_name,
-                        'cx': center_x_ratio,
-                        'cy': center_y_ratio,
-                        'w': width_ratio,
-                        'h': height_ratio,
+                        'cx': norm_anno[0],
+                        'cy': norm_anno[1],
+                        'w': norm_anno[2],
+                        'h': norm_anno[3],
                     }
                 )
 
         return annotations
+
+    def normalize_annotations(self, img_width, img_height, box_left, box_top, box_width, box_height):
+        dec_places = 2
+
+        center_x_ratio = round((box_left + int(box_width / 2)) / img_width, dec_places)
+        center_y_ratio = round((box_top + int(box_height / 2)) / img_height, dec_places)
+        width_ratio = round(box_width / img_width, dec_places)
+        height_ratio = round(box_height / img_height, dec_places)
+
+        return [center_x_ratio, center_y_ratio, width_ratio, height_ratio]
+
+    def read_img(self, img_path):
+        img = cv2.imread(img_path)
+
+        return img, img.shape
 
     def __str__(self):
         return str(self.annotations)
