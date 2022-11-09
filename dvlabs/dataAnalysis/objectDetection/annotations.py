@@ -7,17 +7,17 @@ import json
 class Annotations:
     def __init__(self, annotation_path: str, imgs_dir: str, class_file: str, annotation_format: str):
 
-        self.__annotations__ = dict()
-        self.__classes__ = []
+        self.annotations = dict()
+        self.classes = []
 
-        self.__classes__ = self.read_classes(class_file)
+        self.classes = self.read_classes(class_file)
 
         if annotation_format == 'yolo':
-            self.__annotations__ = self.read_yolo(imgs_dir, annotation_path, self.__classes__)
+            self.annotations = self.read_yolo(imgs_dir, annotation_path, self.classes)
         elif annotation_format == 'pascal-voc':
-            self.__annotations__ = self.read_pascal_voc_xml(annotation_path)
+            self.annotations = self.read_pascal_voc_xml(annotation_path)
         elif annotation_format == 'coco':
-            self.__annotations__ = self.read_coco(annotation_path)
+            self.annotations = self.read_coco(annotation_path)
         else:
             #TODO throw exception
             print("Exception: format not supported yet")
@@ -179,7 +179,7 @@ class Annotations:
         return annotations
 
     def __str__(self):
-        return str(self.__annotations__)
+        return str(self.annotations)
 
 
 if __name__ == '__main__':
