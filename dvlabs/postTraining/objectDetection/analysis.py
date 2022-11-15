@@ -41,7 +41,10 @@ def grid_view(gt_anno, pred_anno, images_dir, grid_size=(1, 1), resolution=(1280
         for y in range(int(grid_size[1])):
             row = []
             for x in range(int(grid_size[0])):
-                img = grid_imgs[count]
+                try:
+                    img = grid_imgs[count]
+                except IndexError:
+                    img = np.zeros(shape=[100, 100, 3], dtype=np.uint8)
                 img = resize_and_pad(img, (resize_h, resize_w), maintain_ratio)
                 row.append(img)
                 count += 1
@@ -162,5 +165,5 @@ if __name__ == "__main__":
     # print(pd_anno)
 
     # grid_view(gt_anno, pd_anno, img_path)
-    grid_view(gt_anno, pd_anno, img_path, grid_size=(3, 2), resolution=(1280, 720), classes=['without_mask'],
+    grid_view(gt_anno, pd_anno, img_path, grid_size=(23, 23), resolution=(1280, 720), classes=['without_mask'],
               iou_filter=[], maintain_ratio=True)
