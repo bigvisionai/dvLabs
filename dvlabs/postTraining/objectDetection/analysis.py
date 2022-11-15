@@ -16,9 +16,9 @@ def grid_view(gt_anno, pred_anno, images_dir, save_dir=None, grid_size=(1, 1), r
 
     vid_writer = None
     if save_dir is not None:
-        vid_writer = cv2.VideoWriter(os.path.join(save_dir, "grid_output.avi"),
-                                     cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
-                                     fps=1, frameSize=(resize_w*grid_size[0], resize_h*grid_size[1]))
+        vid_writer = cv2.VideoWriter(os.path.join(save_dir, "grid_output.mp4"),
+                                     cv2.VideoWriter_fourcc(*'mp4v'), fps=1,
+                                     frameSize=(resize_w*grid_size[0], resize_h*grid_size[1]))
 
     init_idx = 0
 
@@ -179,5 +179,5 @@ if __name__ == "__main__":
     # print(pd_anno)
 
     # grid_view(gt_anno, pd_anno, img_path)
-    grid_view(gt_anno, pd_anno, img_path, grid_size=(3, 3), resolution=(1280, 720),
+    grid_view(gt_anno, pd_anno, img_path, save_dir=project_root, grid_size=(3, 3), resolution=(1280, 720),
               classes=['without_mask'], iou_filter=[], maintain_ratio=True)
