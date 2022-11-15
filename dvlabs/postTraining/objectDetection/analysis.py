@@ -5,11 +5,13 @@ import math
 import numpy as np
 
 
-def grid_view(gt_anno, pred_anno, images_dir, grid_size=(1, 1), classes=[], iou_filter=[]):
+def grid_view(gt_anno, pred_anno, images_dir, grid_size=(1, 1), resolution=(1280, 720), classes=[], iou_filter=[]):
 
     image_names = list(gt_anno.keys())
 
     batch = grid_size[0] * grid_size[1]
+
+    resize_w, resize_h = int(resolution[0]/grid_size[0]), int(resolution[1]/grid_size[1])
 
     init_idx = 0
 
@@ -39,7 +41,7 @@ def grid_view(gt_anno, pred_anno, images_dir, grid_size=(1, 1), classes=[], iou_
             row = []
             for x in range(int(grid_size[0])):
                 img = grid_imgs[count]
-                img = cv2.resize(img, (400, 300))
+                img = cv2.resize(img, (resize_w, resize_h))
                 row.append(img)
                 count += 1
             hor_imgs = np.hstack(row)
