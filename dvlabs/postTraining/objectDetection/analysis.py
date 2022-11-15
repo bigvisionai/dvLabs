@@ -5,14 +5,20 @@ import math
 import numpy as np
 
 
-def grid_view(gt_anno, pred_anno, images_dir, grid_size=(1, 1), resolution=(1280, 720), maintain_ratio=True, classes=[],
+def grid_view(gt_anno, pred_anno, images_dir, save_dir=None, grid_size=(1, 1), resolution=(1280, 720), maintain_ratio=True, classes=[],
               iou_filter=[]):
 
     image_names = list(gt_anno.keys())
 
     batch = grid_size[0] * grid_size[1]
 
-    resize_w, resize_h = int(resolution[0]/grid_size[0]), int(resolution[1]/grid_size[1])
+    resize_w, resize_h = round(resolution[0]/grid_size[0]), round(resolution[1]/grid_size[1])
+
+    vid_writer = None
+    if save_dir is not None:
+        vid_writer = cv2.VideoWriter(os.path.join(save_dir, "grid_output.avi"),
+                                     cv2.VideoWriter_fourcc('M', 'J', 'P', 'G'),
+                                     fps=1, frameSize=(resize_w*grid_size[0], resize_h*grid_size[1]))
 
     init_idx = 0
 
@@ -53,8 +59,16 @@ def grid_view(gt_anno, pred_anno, images_dir, grid_size=(1, 1), resolution=(1280
 
         grid = np.vstack(ver_imgs)
 
-        cv2.imshow('grid', grid)
-        cv2.waitKey(0)
+        if vid_writer is not None:
+            vid_writer.write(grid)
+        else:
+            cv2.imshow('grid', grid)
+            key = cv2.waitKey(0)
+            if key == 27 or key == ord('q'):
+                break
+
+    if vid_writer is not None:
+        vid_writer.release()
 
 
 def display_anno(img, img_anon, color=(0, 255, 0), classes=[]):
@@ -165,5 +179,5 @@ if __name__ == "__main__":
     # print(pd_anno)
 
     # grid_view(gt_anno, pd_anno, img_path)
-    grid_view(gt_anno, pd_anno, img_path, grid_size=(23, 23), resolution=(1280, 720), classes=['without_mask'],
-              iou_filter=[], maintain_ratio=True)
+    grid_view(gt_anno, pd_anno, img_path, grid_size=(3, 3), resolution=(1280, 720),
+              classes=['without_mask'], iou_filter=[], maintain_ratio=True)
