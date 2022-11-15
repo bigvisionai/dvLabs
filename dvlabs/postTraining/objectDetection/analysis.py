@@ -5,7 +5,8 @@ import math
 import numpy as np
 
 
-def grid_view(gt_anno, pred_anno, images_dir, grid_size=(1, 1), resolution=(1280, 720), classes=[], iou_filter=[]):
+def grid_view(gt_anno, pred_anno, images_dir, grid_size=(1, 1), resolution=(1280, 720), maintain_ratio=True, classes=[],
+              iou_filter=[]):
 
     image_names = list(gt_anno.keys())
 
@@ -41,7 +42,7 @@ def grid_view(gt_anno, pred_anno, images_dir, grid_size=(1, 1), resolution=(1280
             row = []
             for x in range(int(grid_size[0])):
                 img = grid_imgs[count]
-                img = cv2.resize(img, (resize_w, resize_h))
+                img = resize_and_pad(img, (resize_h, resize_w), maintain_ratio)
                 row.append(img)
                 count += 1
             hor_imgs = np.hstack(row)
@@ -88,6 +89,55 @@ def display_anno(img, img_anon, color=(0, 255, 0), classes=[]):
             cv2.putText(img, cls_name, [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
 
 
+def resize_and_pad(img, size, maintain_ratio, pad_color=114):
+
+    h, w = img.shape[:2]
+    sh, sw = size
+
+    # interpolation method
+    if h > sh or w > sw:  # shrinking image
+        interp = cv2.INTER_AREA
+    else:  # stretching image
+        interp = cv2.INTER_CUBIC
+
+    if maintain_ratio is True:
+        # aspect ratio of image
+        img_aspect = w / h  # if on Python 2, you might need to cast as a float: float(w)/h
+
+        final_aspect = sw / sh
+
+        # compute scaling and pad sizing
+        if img_aspect > final_aspect:  # horizontal image
+            new_w = sw
+            new_h = np.round(new_w / img_aspect).astype(int)
+            pad_vert = (sh-new_h)/2
+            pad_top, pad_bot = abs(np.floor(pad_vert).astype(int)), abs(np.ceil(pad_vert).astype(int))
+            pad_left, pad_right = 0, 0
+        elif img_aspect < final_aspect:  # vertical image
+            new_h = sh
+            new_w = np.round(new_h * img_aspect).astype(int)
+            pad_horz = (sw-new_w)/2
+            pad_left, pad_right = abs(np.floor(pad_horz).astype(int)), abs(np.ceil(pad_horz).astype(int))
+            pad_top, pad_bot = 0, 0
+        else:  # square image
+            new_h, new_w = sh, sw
+            pad_left, pad_right, pad_top, pad_bot = 0, 0, 0, 0
+
+        # set pad color
+        if len(img.shape) is 3 and not isinstance(pad_color, (list, tuple, np.ndarray)):
+            # color image but only one color provided
+            pad_color = [pad_color] * 3
+
+        # scale and pad
+        scaled_img = cv2.resize(img, (new_w, new_h), interpolation=interp)
+        scaled_img = cv2.copyMakeBorder(scaled_img, pad_top, pad_bot, pad_left, pad_right,
+                                        borderType=cv2.BORDER_CONSTANT, value=pad_color)
+    else:
+        # scale
+        scaled_img = cv2.resize(img, (sw, sh), interpolation=interp)
+    return scaled_img
+
+
 if __name__ == "__main__":
     project_root = "..\..\.."
     # img_path = os.path.join(project_root, "examples", "images")
@@ -111,5 +161,6 @@ if __name__ == "__main__":
     pd_anno = Annotations(pascal_voc_xml_path, img_path, class_file_path, "pascal-voc").annotations
     # print(pd_anno)
 
-    # grid_view(gt_anno, pd_anno, img_path, grid_size=(3, 3), classes=[], iou_filter=[])
-    grid_view(gt_anno, pd_anno, img_path, grid_size=(1, 1), classes=['without_mask'], iou_filter=[])
+    # grid_view(gt_anno, pd_anno, img_path)
+    grid_view(gt_anno, pd_anno, img_path, grid_size=(3, 2), resolution=(1280, 720), classes=['without_mask'],
+              iou_filter=[], maintain_ratio=True)
