@@ -6,7 +6,7 @@ import numpy as np
 
 
 def grid_view(gt_anno, pred_anno, images_dir, save_dir=None, grid_size=(1, 1), resolution=(1280, 720), maintain_ratio=True, classes=[],
-              iou_filter=[]):
+              iou_thres=1):
 
     image_names = list(gt_anno.keys())
 
@@ -36,9 +36,11 @@ def grid_view(gt_anno, pred_anno, images_dir, save_dir=None, grid_size=(1, 1), r
             img = cv2.imread(img_path)
             img_h, img_w, _ = img.shape
 
-            display_anno(img, gt_anno[img_name], (0, 255, 0), classes)
+            filtered_gt, filtered_pred = filter_anno(gt_anno[img_name], pred_anno[img_name], iou_thres)
 
-            display_anno(img, pred_anno[img_name], (0, 255, 255), classes)
+            display_anno(img, filtered_gt, (0, 255, 0), classes)
+
+            display_anno(img, filtered_pred, (0, 255, 255), classes)
 
             grid_imgs.append(img)
 
@@ -104,6 +106,81 @@ def display_anno(img, img_anon, color=(0, 255, 0), classes=[]):
             cv2.rectangle(img, lbl_box, color, -1)
             cv2.rectangle(img, bbox, color, thickness)
             cv2.putText(img, cls_name, [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
+
+
+def filter_anno(gt_annos, pred_annos, iou_thres):
+
+    filtered_pred_objs = []
+
+    for idx, pred_obj in enumerate(pred_annos['objects']):
+        bbox_iou = get_max_iou(pred_obj, pred_annos, gt_annos)
+        print(iou_thres, bbox_iou)
+
+        if bbox_iou > iou_thres:
+            print("filter")
+        else:
+            filtered_pred_objs.append(pred_obj)
+
+    pred_annos['objects'] = filtered_pred_objs
+
+    return gt_annos, pred_annos
+
+
+def get_max_iou(obj, pred_annos, gt_annos):
+
+    max_iou = 0
+
+    for gt_obj in gt_annos['objects']:
+        pred_bbox = denormalize_bbox(obj, pred_annos['width'], pred_annos['height'])
+        gt_bbox = denormalize_bbox(gt_obj, gt_annos['width'], gt_annos['height'])
+
+        iou = calc_iou(pred_bbox, gt_bbox)
+        if iou > max_iou:
+            max_iou = iou
+
+    return max_iou
+
+
+def denormalize_bbox(anno_obj, img_w, img_h):
+    c_x = anno_obj['cx'] * img_w
+    c_y = anno_obj['cy'] * img_h
+    w = round(anno_obj['w'] * img_w)
+    h = round(anno_obj['h'] * img_h)
+
+    xmin = round(c_x - (w / 2))
+    ymin = round(c_y - (h / 2))
+    xmax = round(c_x + (w / 2))
+    ymax = round(c_y + (h / 2))
+
+    return [xmin, ymin, xmax, ymax]
+
+
+def calc_iou(pred_bbox, gt_bbox):
+    # coordinates of the area of intersection.
+    ix1 = np.maximum(gt_bbox[0], pred_bbox[0])
+    iy1 = np.maximum(gt_bbox[1], pred_bbox[1])
+    ix2 = np.minimum(gt_bbox[2], pred_bbox[2])
+    iy2 = np.minimum(gt_bbox[3], pred_bbox[3])
+
+    # Intersection height and width.
+    i_height = np.maximum(iy2 - iy1 + 1, np.array(0.))
+    i_width = np.maximum(ix2 - ix1 + 1, np.array(0.))
+
+    area_of_intersection = i_height * i_width
+
+    # Ground Truth dimensions.
+    gt_height = gt_bbox[3] - gt_bbox[1] + 1
+    gt_width = gt_bbox[2] - gt_bbox[0] + 1
+
+    # Prediction dimensions.
+    pd_height = pred_bbox[3] - pred_bbox[1] + 1
+    pd_width = pred_bbox[2] - pred_bbox[0] + 1
+
+    area_of_union = gt_height * gt_width + pd_height * pd_width - area_of_intersection
+
+    iou = area_of_intersection / area_of_union
+
+    return iou
 
 
 def resize_and_pad(img, size, maintain_ratio, pad_color=114):
@@ -179,5 +256,5 @@ if __name__ == "__main__":
     # print(pd_anno)
 
     # grid_view(gt_anno, pd_anno, img_path)
-    grid_view(gt_anno, pd_anno, img_path, save_dir=project_root, grid_size=(3, 3), resolution=(1280, 720),
-              classes=['without_mask'], iou_filter=[], maintain_ratio=True)
+    grid_view(gt_anno, pd_anno, img_path, grid_size=(3, 3), resolution=(1280, 720),
+              classes=['without_mask'], iou_thres=.5, maintain_ratio=True)
