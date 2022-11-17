@@ -114,11 +114,8 @@ def filter_anno(gt_annos, pred_annos, iou_thres):
 
     for idx, pred_obj in enumerate(pred_annos['objects']):
         bbox_iou = get_max_iou(pred_obj, pred_annos, gt_annos)
-        print(iou_thres, bbox_iou)
 
-        if bbox_iou > iou_thres:
-            print("filter")
-        else:
+        if not bbox_iou > iou_thres:
             filtered_pred_objs.append(pred_obj)
 
     pred_annos['objects'] = filtered_pred_objs
@@ -131,12 +128,13 @@ def get_max_iou(obj, pred_annos, gt_annos):
     max_iou = 0
 
     for gt_obj in gt_annos['objects']:
-        pred_bbox = denormalize_bbox(obj, pred_annos['width'], pred_annos['height'])
-        gt_bbox = denormalize_bbox(gt_obj, gt_annos['width'], gt_annos['height'])
+        if obj['class'] == gt_obj['class']:
+            pred_bbox = denormalize_bbox(obj, pred_annos['width'], pred_annos['height'])
+            gt_bbox = denormalize_bbox(gt_obj, gt_annos['width'], gt_annos['height'])
 
-        iou = calc_iou(pred_bbox, gt_bbox)
-        if iou > max_iou:
-            max_iou = iou
+            iou = calc_iou(pred_bbox, gt_bbox)
+            if iou > max_iou:
+                max_iou = iou
 
     return max_iou
 
@@ -234,25 +232,15 @@ def resize_and_pad(img, size, maintain_ratio, pad_color=114):
 
 if __name__ == "__main__":
     project_root = "..\..\.."
-    # img_path = os.path.join(project_root, "examples", "images")
-    # yolo_txt_path = os.path.join(project_root, "examples", "annotations", "yolo_txts")
-    # pascal_voc_xml_path = os.path.join(project_root, "examples", "annotations", "pascal_voc_xmls")
-    class_file_path = os.path.join(project_root, "examples", "class.names")
-    #
-    # gt_anno = Annotations(yolo_txt_path, img_path, class_file_path, "yolo").annotations
-    # print(gt_anno)
-    #
-    # pd_anno = Annotations(pascal_voc_xml_path, img_path, class_file_path, "pascal-voc").annotations
-    # print(pd_anno)
+    img_path = os.path.join(project_root, "examples", "sample_dataset", "images")
+    gt_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "gt")
+    pd_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "preds")
+    class_file_path = os.path.join(project_root, "examples", "sample_dataset", "class.names")
 
-    project_root = "D:\BigVision\datasets\mask detection"
-    img_path = os.path.join(project_root, "images")
-    pascal_voc_xml_path = os.path.join(project_root, "annotations")
-
-    gt_anno = Annotations(pascal_voc_xml_path, img_path, class_file_path, "pascal-voc").annotations
+    gt_anno = Annotations(gt_yolo_txt_path, img_path, class_file_path, "yolo").annotations
     # print(gt_anno)
 
-    pd_anno = Annotations(pascal_voc_xml_path, img_path, class_file_path, "pascal-voc").annotations
+    pd_anno = Annotations(pd_yolo_txt_path, img_path, class_file_path, "yolo").annotations
     # print(pd_anno)
 
     # grid_view(gt_anno, pd_anno, img_path)
