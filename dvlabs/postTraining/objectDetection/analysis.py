@@ -33,8 +33,8 @@ class Analyse:
                 img_path = os.path.join(self.img_dir, img_name)
                 img = cv2.imread(img_path)
 
-                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], iou_thres)
-                filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], iou_thres)
+                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], classes, iou_thres)
+                filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], classes, iou_thres)
 
                 self.display_anno(img, filtered_gt, (0, 255, 0), classes)
                 self.display_anno(img, filtered_pred, (0, 255, 255), classes)
@@ -57,51 +57,52 @@ class Analyse:
     def display_anno(self, img, img_anon, color=(0, 255, 0), classes=[]):
 
         for obj in img_anon['objects']:
-            cls_name = obj['class']
+            c_x = obj['cx'] * img_anon['width']
+            c_y = obj['cy'] * img_anon['height']
+            w = int(obj['w'] * img_anon['width'])
+            h = int(obj['h'] * img_anon['height'])
+            xmin = int(c_x - (w / 2))
+            ymin = int(c_y - (h / 2))
 
-            show = True
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            lbl_scale = 0.8
+            c = round(max(img.shape)) * .03 * 1 / 22
+            thickness = max(round(c * 2), 1)
+            lbl_scale = lbl_scale * c
+            ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(obj['class'], font, lbl_scale, thickness)
+            # print((lbl_w, lbl_h), lbl_bline)
+            lbl_box = [xmin, ymin-lbl_h-lbl_bline, lbl_w, lbl_h+lbl_bline]
 
-            if len(classes) is not 0:
-                if cls_name not in classes:
-                    show = False
+            bbox = [xmin, ymin, w, h]
 
-            if show:
-                c_x = obj['cx'] * img_anon['width']
-                c_y = obj['cy'] * img_anon['height']
-                w = int(obj['w'] * img_anon['width'])
-                h = int(obj['h'] * img_anon['height'])
-                xmin = int(c_x - (w / 2))
-                ymin = int(c_y - (h / 2))
+            cv2.rectangle(img, lbl_box, color, -1)
+            cv2.rectangle(img, bbox, color, thickness)
+            cv2.putText(img, obj['class'], [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
 
-                font = cv2.FONT_HERSHEY_SIMPLEX
-                lbl_scale = 0.8
-                c = round(max(img.shape)) * .03 * 1 / 22
-                thickness = max(round(c * 2), 1)
-                lbl_scale = lbl_scale * c
-                ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(cls_name, font, lbl_scale, thickness)
-                # print((lbl_w, lbl_h), lbl_bline)
-                lbl_box = [xmin, ymin-lbl_h-lbl_bline, lbl_w, lbl_h+lbl_bline]
-
-                bbox = [xmin, ymin, w, h]
-
-                cv2.rectangle(img, lbl_box, color, -1)
-                cv2.rectangle(img, bbox, color, thickness)
-                cv2.putText(img, cls_name, [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
-
-    def filter_anno(self, annos_to_filter, annos_to_compare, iou_thres):
+    def filter_anno(self, annos_to_filter, annos_to_compare, classes, iou_thres):
 
         filtered_annos = annos_to_filter.copy()
         filtered_pred_objs = []
 
         for idx, to_filter_obj in enumerate(annos_to_filter['objects']):
-            max_bbox_iou = self.get_max_iou(to_filter_obj, annos_to_filter, annos_to_compare)
 
-            if not max_bbox_iou > iou_thres:
-                filtered_pred_objs.append(to_filter_obj)
+            if self.filter_class(to_filter_obj['class'], classes):
+
+                max_bbox_iou = self.get_max_iou(to_filter_obj, annos_to_filter, annos_to_compare)
+
+                if not max_bbox_iou > iou_thres:
+                    filtered_pred_objs.append(to_filter_obj)
 
         filtered_annos['objects'] = filtered_pred_objs
 
         return filtered_annos
+
+    def filter_class(self, cls_name, classes):
+        include_anno = True
+        if len(classes) is not 0:
+            if cls_name not in classes:
+                include_anno = False
+        return include_anno
 
     def get_max_iou(self, obj, annos1, annos2):
 
