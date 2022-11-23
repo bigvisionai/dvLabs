@@ -33,7 +33,8 @@ class Analyse:
                 img_path = os.path.join(self.img_dir, img_name)
                 img = cv2.imread(img_path)
 
-                filtered_gt, filtered_pred = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], iou_thres)
+                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], iou_thres)
+                filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], iou_thres)
 
                 self.display_anno(img, filtered_gt, (0, 255, 0), classes)
                 self.display_anno(img, filtered_pred, (0, 255, 255), classes)
@@ -87,30 +88,32 @@ class Analyse:
                 cv2.rectangle(img, bbox, color, thickness)
                 cv2.putText(img, cls_name, [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
 
-    def filter_anno(self, gt_annos, pred_annos, iou_thres):
+    def filter_anno(self, annos_to_filter, annos_to_compare, iou_thres):
 
+        filtered_annos = annos_to_filter.copy()
         filtered_pred_objs = []
 
-        for idx, pred_obj in enumerate(pred_annos['objects']):
-            bbox_iou = self.get_max_iou(pred_obj, pred_annos, gt_annos)
+        for idx, to_filter_obj in enumerate(annos_to_filter['objects']):
+            max_bbox_iou = self.get_max_iou(to_filter_obj, annos_to_filter, annos_to_compare)
 
-            if not bbox_iou > iou_thres:
-                filtered_pred_objs.append(pred_obj)
+            if not max_bbox_iou > iou_thres:
+                filtered_pred_objs.append(to_filter_obj)
 
-        pred_annos['objects'] = filtered_pred_objs
+        filtered_annos['objects'] = filtered_pred_objs
 
-        return gt_annos, pred_annos
+        return filtered_annos
 
-    def get_max_iou(self, obj, pred_annos, gt_annos):
+    def get_max_iou(self, obj, annos1, annos2):
 
         max_iou = 0
 
-        for gt_obj in gt_annos['objects']:
-            if obj['class'] == gt_obj['class']:
-                pred_bbox = denormalize_bbox(obj, pred_annos['width'], pred_annos['height'])
-                gt_bbox = denormalize_bbox(gt_obj, gt_annos['width'], gt_annos['height'])
+        bbox1 = denormalize_bbox(obj, annos1['width'], annos1['height'])
 
-                iou = calc_iou(pred_bbox, gt_bbox)
+        for gt_obj in annos2['objects']:
+            if obj['class'] == gt_obj['class']:
+                bbox2 = denormalize_bbox(gt_obj, annos2['width'], annos2['height'])
+
+                iou = calc_iou(bbox1, bbox2)
                 if iou > max_iou:
                     max_iou = iou
 
