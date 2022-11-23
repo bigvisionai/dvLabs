@@ -1,5 +1,6 @@
 import numpy as np
 import cv2
+import math
 
 
 def denormalize_bbox(anno_obj, img_w, img_h):
@@ -91,3 +92,48 @@ def resize_and_pad(img, size, maintain_ratio, pad_color=114):
         # scale
         scaled_img = cv2.resize(img, (sw, sh), interpolation=interp)
     return scaled_img
+
+
+def get_batches(items, batch_size):
+
+    init_idx = 0
+    batches = []
+
+    for x in range(math.ceil(len(items) / batch_size)):
+        last_idx = init_idx + batch_size
+
+        batch = items[init_idx:last_idx]
+
+        batches.append(batch)
+
+        init_idx = last_idx
+
+    return batches
+
+
+def get_vid_writer(out_file: str, fps: int, f_size: tuple):
+
+    vid_writer = cv2.VideoWriter(out_file + ".mp4", cv2.VideoWriter_fourcc(*'mp4v'), fps, f_size)
+
+    return vid_writer
+
+
+def create_grid(imgs, grid_size, resize_shape, maintain_ratio):
+    ver_imgs = []
+    count = 0
+    for y in range(int(grid_size[1])):
+        row = []
+        for x in range(int(grid_size[0])):
+            try:
+                img = imgs[count]
+            except IndexError:
+                img = np.zeros(shape=[100, 100, 3], dtype=np.uint8)
+            img = resize_and_pad(img, resize_shape, maintain_ratio)
+            row.append(img)
+            count += 1
+        hor_imgs = np.hstack(row)
+        ver_imgs.append(hor_imgs)
+
+    grid = np.vstack(ver_imgs)
+
+    return grid
