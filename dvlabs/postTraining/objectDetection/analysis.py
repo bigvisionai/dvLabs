@@ -12,7 +12,7 @@ class Analyse:
         self.img_dir = img_dir
 
     def grid_view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720),
-                  maintain_ratio=True, classes=[], iou_thres=1):
+                  maintain_ratio=True, filter_classes=[], iou_thres=1):
 
         image_names = list(self.gt_annos.keys())
 
@@ -33,11 +33,13 @@ class Analyse:
                 img_path = os.path.join(self.img_dir, img_name)
                 img = cv2.imread(img_path)
 
-                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], classes, iou_thres)
-                filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], classes, iou_thres)
+                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], filter_classes,
+                                               iou_thres)
+                filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], filter_classes,
+                                                 iou_thres)
 
-                self.display_anno(img, filtered_gt, (0, 255, 0), classes)
-                self.display_anno(img, filtered_pred, (0, 255, 255), classes)
+                self.display_anno(img, filtered_gt, (0, 255, 0))
+                self.display_anno(img, filtered_pred, (0, 255, 255))
 
                 batch_imgs.append(img)
 
@@ -54,7 +56,7 @@ class Analyse:
         if vid_writer is not None:
             vid_writer.release()
 
-    def display_anno(self, img, img_anon, color=(0, 255, 0), classes=[]):
+    def display_anno(self, img, img_anon, color=(0, 255, 0)):
 
         for obj in img_anon['objects']:
             c_x = obj['cx'] * img_anon['width']
@@ -70,7 +72,6 @@ class Analyse:
             thickness = max(round(c * 2), 1)
             lbl_scale = lbl_scale * c
             ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(obj['class'], font, lbl_scale, thickness)
-            # print((lbl_w, lbl_h), lbl_bline)
             lbl_box = [xmin, ymin-lbl_h-lbl_bline, lbl_w, lbl_h+lbl_bline]
 
             bbox = [xmin, ymin, w, h]
@@ -79,14 +80,14 @@ class Analyse:
             cv2.rectangle(img, bbox, color, thickness)
             cv2.putText(img, obj['class'], [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
 
-    def filter_anno(self, annos_to_filter, annos_to_compare, classes, iou_thres):
+    def filter_anno(self, annos_to_filter, annos_to_compare, filter_classes, iou_thres):
 
         filtered_annos = annos_to_filter.copy()
         filtered_pred_objs = []
 
         for idx, to_filter_obj in enumerate(annos_to_filter['objects']):
 
-            if self.filter_class(to_filter_obj['class'], classes):
+            if self.filter_class(to_filter_obj['class'], filter_classes):
 
                 max_bbox_iou = self.get_max_iou(to_filter_obj, annos_to_filter, annos_to_compare)
 
@@ -97,10 +98,10 @@ class Analyse:
 
         return filtered_annos
 
-    def filter_class(self, cls_name, classes):
+    def filter_class(self, cls_name, filter_classes):
         include_anno = True
-        if len(classes) is not 0:
-            if cls_name not in classes:
+        if len(filter_classes) is not 0:
+            if cls_name not in filter_classes:
                 include_anno = False
         return include_anno
 
@@ -135,4 +136,4 @@ if __name__ == "__main__":
     # print(pd_anno)
 
     pt_analyser = Analyse(gt_anno, pd_anno, img_path)
-    pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), classes=[], iou_thres=.75, maintain_ratio=True)
+    pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75, maintain_ratio=True)
