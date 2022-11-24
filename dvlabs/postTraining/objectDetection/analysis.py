@@ -56,6 +56,9 @@ class Analyse:
         if vid_writer is not None:
             vid_writer.release()
 
+    # Alias for grid view method
+    view_mistakes = grid_view
+
     def display_anno(self, img, img_anon, color=(0, 255, 0)):
 
         for obj in img_anon['objects']:
