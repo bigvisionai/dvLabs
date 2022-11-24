@@ -2,6 +2,7 @@ from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
 from dvlabs.utils import denormalize_bbox, calc_iou, get_batches, get_vid_writer, create_grid
 import os
 import cv2
+import matplotlib.pyplot as plt
 
 
 class Analyse:
@@ -101,6 +102,40 @@ class Analyse:
 
         return filtered_annos
 
+    def avg_iou_per_sample(self):
+
+        avg_IOUs = []
+
+        image_names = list(self.gt_annos.keys())
+
+        for img_name in image_names:
+            img_gt_annos = self.gt_annos[img_name]
+            img_pred_annos = self.pred_annos[img_name]
+
+            sum_iou = 0
+            samples = 0
+
+            for idx, obj in enumerate(img_pred_annos['objects']):
+                iou = self.get_max_iou(obj, img_pred_annos, img_gt_annos)
+                sum_iou += iou
+                samples += 1
+
+            for idx, obj in enumerate(img_gt_annos['objects']):
+                iou = self.get_max_iou(obj, img_gt_annos, img_pred_annos)
+                if iou == 0:
+                    samples += 1
+
+            if samples == 0:
+                avg_IOUs.append(None)
+            else:
+                avg_IOUs.append(sum_iou/samples)
+
+        plt.plot(range(0, len(image_names)), avg_IOUs)
+        plt.title('Average IOU per Sample')
+        plt.xlabel('Samples')
+        plt.ylabel('Average IOU')
+        plt.show()
+
     def filter_class(self, cls_name, filter_classes):
         include_anno = True
         if len(filter_classes) is not 0:
@@ -139,4 +174,5 @@ if __name__ == "__main__":
     # print(pd_anno)
 
     pt_analyser = Analyse(gt_anno, pd_anno, img_path)
-    pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75, maintain_ratio=True)
+    # pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75, maintain_ratio=True)
+    pt_analyser.avg_iou_per_sample()
