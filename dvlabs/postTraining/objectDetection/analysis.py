@@ -3,6 +3,7 @@ from dvlabs.utils import denormalize_bbox, calc_iou, get_batches, get_vid_writer
 import os
 import cv2
 import matplotlib.pyplot as plt
+import numpy as np
 
 
 class Analyse:
@@ -184,6 +185,35 @@ class Analyse:
 
         return tp, fp, fn, precision, recall, f1
 
+    def confusion_matrix(self, iou_thres):
+        tp, fp, fn, _, _, _ = self.evaluate_metric(iou_thres)
+
+        marks = np.array([[tp, fp],
+                          [fn, np.nan]])
+
+        fig, ax = plt.subplots()
+        ax.imshow(marks, cmap='Reds', interpolation="nearest")
+
+        # Show all ticks and label them with the respective list entries
+        ax.set_xticks(np.arange(2), labels=['True', 'False'])
+        ax.set_yticks(np.arange(2), labels=['True', 'False'])
+
+        # Rotate the tick labels and set their alignment.
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+                 rotation_mode="anchor")
+
+        # Loop over data dimensions and create text annotations.
+        for i in range(2):
+            for j in range(2):
+                ax.text(j, i, marks[i, j], ha="center", va="center", color="0")
+
+        ax.set_title("Confusion Matrix")
+        ax.set_xlabel('Predicted Values')
+        ax.set_ylabel('Actual Values ')
+
+        fig.tight_layout()
+        plt.show()
+
     def filter_class(self, cls_name, filter_classes):
         include_anno = True
         if len(filter_classes) is not 0:
@@ -223,5 +253,6 @@ if __name__ == "__main__":
 
     pt_analyser = Analyse(gt_anno, pd_anno, img_path)
     # pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75, maintain_ratio=True)
-    pt_analyser.avg_iou_per_sample()
-    pt_analyser.evaluate_metric(0.5)
+    # pt_analyser.avg_iou_per_sample()
+    # pt_analyser.evaluate_metric(0.5)
+    pt_analyser.confusion_matrix(0.5)
