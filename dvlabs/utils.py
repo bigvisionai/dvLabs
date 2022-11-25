@@ -137,3 +137,23 @@ def create_grid(imgs, grid_size, resize_shape, maintain_ratio):
     grid = np.vstack(ver_imgs)
 
     return grid
+
+
+def calc_precision_recall_f1(tp, fp, fn):
+
+    try:
+        precision = round(tp / (tp + fp), 3)
+    except ZeroDivisionError:
+        precision = 0
+
+    try:
+        recall = round(tp / (tp + fn), 3)
+    except ZeroDivisionError:
+        recall = 0
+
+    try:
+        f1 = round(2 * ((precision * recall) / (precision + recall)), 3)
+    except ZeroDivisionError:
+        f1 = 0
+
+    return precision, recall, f1
