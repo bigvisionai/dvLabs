@@ -63,6 +63,7 @@ class Annotations:
                     'width': img_width,
                     'height': img_height,
                     'depth': img_depth,
+                    'classes': self.classes,
                     'objects': read_objects
                 }
 
@@ -117,6 +118,7 @@ class Annotations:
                     'width': img_width,
                     'height': img_height,
                     'depth': img_depth,
+                    'classes': self.classes,
                     'objects': read_objects
                 }
 
@@ -140,6 +142,7 @@ class Annotations:
                 annotations[image['file_name']] = {
                     'width': image['width'],
                     'height': image['height'],
+                    'classes': self.classes,
                     'objects': []
                 }
 
