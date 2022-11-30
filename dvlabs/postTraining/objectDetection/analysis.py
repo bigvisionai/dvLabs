@@ -175,7 +175,7 @@ class Analyse:
 
         return filtered_annos
 
-    def avg_iou_per_sample(self):
+    def avg_iou_per_sample(self, save_dir=None):
 
         avg_IOUs = []
 
@@ -202,6 +202,12 @@ class Analyse:
                 avg_IOUs.append(None)
             else:
                 avg_IOUs.append(sum_iou/samples)
+
+        # Save mistakes annotations
+        if save_dir is not None:
+            with open(os.path.join(save_dir, "avg_iou_per_sample.txt"), 'w') as f:
+                for img_name, iou in zip(image_names, avg_IOUs):
+                    f.write(f"{img_name} {round(iou, 3)}\n")
 
         plt.plot(range(0, len(image_names)), avg_IOUs)
         plt.title('Average IOU per Sample')
@@ -326,8 +332,8 @@ if __name__ == "__main__":
     pt_analyser = Analyse(gt_anno, pd_anno, img_path)
     # pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
     #                       maintain_ratio=True)
-    pt_analyser.view_mistakes(grid_size=(3, 3), save_dir=project_root, resolution=(1280, 720), filter_classes=[], iou_thres=.75,
-                              maintain_ratio=True)
-    # pt_analyser.avg_iou_per_sample()
+    # pt_analyser.view_mistakes(grid_size=(3, 3), save_dir=project_root, resolution=(1280, 720), filter_classes=[], iou_thres=.75,
+    #                           maintain_ratio=True)
+    pt_analyser.avg_iou_per_sample(save_dir=project_root)
     # pt_analyser.evaluate_metric(0.5)
     # pt_analyser.confusion_matrix(0.5)
