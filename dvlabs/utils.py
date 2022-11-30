@@ -157,3 +157,17 @@ def calc_precision_recall_f1(tp, fp, fn):
         f1 = 0
 
     return precision, recall, f1
+
+def combine_img_annos(anno1, anno2):
+    combined_annos = anno1.copy()
+    combined_pred_objs = []
+
+    for idx, to_combine_obj in enumerate(anno1['objects']):
+        combined_pred_objs.append(to_combine_obj)
+
+    for idx, to_combine_obj in enumerate(anno2['objects']):
+        combined_pred_objs.append(to_combine_obj)
+
+    combined_annos['objects'] = combined_pred_objs
+
+    return combined_annos

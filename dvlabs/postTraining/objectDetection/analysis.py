@@ -1,5 +1,7 @@
 from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
-from dvlabs.utils import denormalize_bbox, calc_iou, get_batches, get_vid_writer, create_grid, calc_precision_recall_f1
+from dvlabs.dataPreparation.objectDetection.convert_annotations import to_yolo
+from dvlabs.utils import denormalize_bbox, calc_iou, get_batches, get_vid_writer, create_grid, \
+    calc_precision_recall_f1, combine_img_annos
 import os
 import cv2
 import matplotlib.pyplot as plt
@@ -7,10 +9,12 @@ import numpy as np
 
 
 class Analyse:
-    def __init__(self, gt_annos, pred_annos, img_dir):
+    def __init__(self, gt_annos_obj, pred_annos_obj, img_dir):
 
-        self.gt_annos = gt_annos
-        self.pred_annos = pred_annos
+        self.gt_annos_obj = gt_annos_obj
+        self.pred_annos_obj = pred_annos_obj
+        self.gt_annos = gt_annos_obj.annotations
+        self.pred_annos = pred_annos_obj.annotations
         self.img_dir = img_dir
 
     def grid_view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720),
@@ -24,7 +28,7 @@ class Analyse:
 
         vid_writer = None
         if save_dir is not None:
-            vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output.mp4"), 1,
+            vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output"), 1,
                                         (resize_w*grid_size[0], resize_h*grid_size[1]))
 
         batches = get_batches(image_names, batch_size)
@@ -69,11 +73,12 @@ class Analyse:
 
         vid_writer = None
         if save_dir is not None:
-            vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output.mp4"), 1,
+            vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output"), 1,
                                         (resize_w*grid_size[0], resize_h*grid_size[1]))
 
         filtered_gt_annos = {}
         filtered_pred_annos = {}
+        combined_mistakes_anno = {}
         filtered_image_names = []
 
         for img_name in image_names:
@@ -87,6 +92,17 @@ class Analyse:
                 filtered_gt_annos[img_name] = filtered_gt
                 filtered_pred_annos[img_name] = filtered_pred
                 filtered_image_names.append(img_name)
+
+                # Combine mistakes annotations to one object
+                combined_mistakes_anno[img_name] = combine_img_annos(filtered_gt, filtered_pred)
+
+        # Save mistakes annotations
+        if save_dir is not None:
+            save_anno_dir = os.path.join(save_dir, "annotations")
+            if not os.path.exists(save_anno_dir):
+                os.makedirs(save_anno_dir)
+
+            to_yolo(combined_mistakes_anno, save_anno_dir, self.gt_annos_obj.classes)
 
         batches = get_batches(filtered_image_names, batch_size)
 
@@ -301,16 +317,16 @@ if __name__ == "__main__":
     pd_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "preds")
     class_file_path = os.path.join(project_root, "examples", "sample_dataset", "class.names")
 
-    gt_anno = Annotations(gt_yolo_txt_path, img_path, class_file_path, "yolo").annotations
+    gt_anno = Annotations(gt_yolo_txt_path, img_path, class_file_path, "yolo")
     # print(gt_anno)
 
-    pd_anno = Annotations(pd_yolo_txt_path, img_path, class_file_path, "yolo").annotations
+    pd_anno = Annotations(pd_yolo_txt_path, img_path, class_file_path, "yolo")
     # print(pd_anno)
 
     pt_analyser = Analyse(gt_anno, pd_anno, img_path)
     # pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
     #                       maintain_ratio=True)
-    pt_analyser.view_mistakes(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
+    pt_analyser.view_mistakes(grid_size=(3, 3), save_dir=project_root, resolution=(1280, 720), filter_classes=[], iou_thres=.75,
                               maintain_ratio=True)
     # pt_analyser.avg_iou_per_sample()
     # pt_analyser.evaluate_metric(0.5)
