@@ -1,4 +1,5 @@
 from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
+from dvlabs.postTraining.objectDetection.detections import Detections
 from dvlabs.dataPreparation.objectDetection.convert_annotations import to_yolo
 from dvlabs.utils import denormalize_bbox, calc_iou, get_batches, get_vid_writer, create_grid, \
     calc_precision_recall_f1, combine_img_annos
@@ -9,12 +10,12 @@ import numpy as np
 
 
 class Analyse:
-    def __init__(self, gt_annos_obj, pred_annos_obj, img_dir):
+    def __init__(self, gt_annos_obj, pred_dets_obj, img_dir):
 
         self.gt_annos_obj = gt_annos_obj
-        self.pred_annos_obj = pred_annos_obj
+        self.pred_annos_obj = pred_dets_obj
         self.gt_annos = gt_annos_obj.annotations
-        self.pred_annos = pred_annos_obj.annotations
+        self.pred_dets = pred_dets_obj.detections
         self.img_dir = img_dir
 
     def grid_view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720),
@@ -39,9 +40,9 @@ class Analyse:
                 img_path = os.path.join(self.img_dir, img_name)
                 img = cv2.imread(img_path)
 
-                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], filter_classes,
+                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_dets[img_name], filter_classes,
                                                iou_thres)
-                filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], filter_classes,
+                filtered_pred = self.filter_anno(self.pred_dets[img_name], self.gt_annos[img_name], filter_classes,
                                                  iou_thres)
 
                 self.display_anno(img, filtered_gt, (0, 255, 0))
@@ -82,10 +83,10 @@ class Analyse:
         filtered_image_names = []
 
         for img_name in image_names:
-            filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], filter_classes,
+            filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_dets[img_name], filter_classes,
                                            iou_thres)
 
-            filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], filter_classes,
+            filtered_pred = self.filter_anno(self.pred_dets[img_name], self.gt_annos[img_name], filter_classes,
                                              iou_thres)
 
             if (len(filtered_gt['objects']) is not 0) or (len(filtered_pred['objects']) is not 0):
@@ -183,7 +184,7 @@ class Analyse:
 
         for img_name in image_names:
             img_gt_annos = self.gt_annos[img_name]
-            img_pred_annos = self.pred_annos[img_name]
+            img_pred_annos = self.pred_dets[img_name]
 
             sum_iou = 0
             samples = 0
@@ -240,7 +241,7 @@ class Analyse:
         tp = fp = fn = 0
 
         img_gt_annos = self.gt_annos[img_name]
-        img_pred_annos = self.pred_annos[img_name]
+        img_pred_annos = self.pred_dets[img_name]
 
         for idx, obj in enumerate(img_pred_annos['objects']):
             iou = self.get_max_iou(obj, img_pred_annos, img_gt_annos)
@@ -320,19 +321,19 @@ if __name__ == "__main__":
     project_root = "..\..\.."
     img_path = os.path.join(project_root, "examples", "sample_dataset", "images")
     gt_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "gt")
-    pd_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "preds")
+    det_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "dets")
     class_file_path = os.path.join(project_root, "examples", "sample_dataset", "class.names")
 
     gt_anno = Annotations(gt_yolo_txt_path, img_path, class_file_path, "yolo")
     # print(gt_anno)
 
-    pd_anno = Annotations(pd_yolo_txt_path, img_path, class_file_path, "yolo")
-    # print(pd_anno)
+    pd_dets = Detections(det_yolo_txt_path, img_path, class_file_path, "yolo")
+    # print(pd_dets)
 
-    pt_analyser = Analyse(gt_anno, pd_anno, img_path)
-    # pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
-    #                       maintain_ratio=True)
-    # pt_analyser.view_mistakes(grid_size=(3, 3), save_dir=project_root, resolution=(1280, 720), filter_classes=[], iou_thres=.75,
+    pt_analyser = Analyse(gt_anno, pd_dets, img_path)
+    pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
+                          maintain_ratio=True)
+    # pt_analyser.view_mistakes(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
     #                           maintain_ratio=True)
     pt_analyser.avg_iou_per_sample(save_dir=project_root)
     # pt_analyser.evaluate_metric(0.5)
