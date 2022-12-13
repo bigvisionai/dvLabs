@@ -46,7 +46,7 @@ class Analyse:
                 filtered_pred = self.filter_anno(self.pred_dets[img_name], self.gt_annos[img_name], filter_classes,
                                                  iou_thres)
 
-                self.display_anno(img, filtered_gt, (0, 255, 0))
+                self.display_gt(img, filtered_gt, (0, 255, 0))
                 self.display_anno(img, filtered_pred, (0, 255, 255))
 
                 batch_imgs.append(img)
@@ -117,7 +117,7 @@ class Analyse:
                 filtered_gt = filtered_gt_annos[img_name]
                 filtered_pred = filtered_pred_annos[img_name]
 
-                self.display_anno(img, filtered_gt, (0, 255, 0))
+                self.display_gt(img, filtered_gt, (0, 255, 0))
                 self.display_anno(img, filtered_pred, (0, 255, 255))
 
                 batch_imgs.append(img)
@@ -158,6 +158,32 @@ class Analyse:
             cv2.rectangle(img, lbl_box, color, -1)
             cv2.rectangle(img, bbox, color, thickness)
             cv2.putText(img, obj['class'], [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
+
+    def display_gt(self, img, img_anon, color=(0, 255, 0)):
+
+        for obj in img_anon['objects']:
+            c_x = obj['cx'] * img_anon['width']
+            c_y = obj['cy'] * img_anon['height']
+            w = int(obj['w'] * img_anon['width'])
+            h = int(obj['h'] * img_anon['height'])
+            xmin = int(c_x - (w / 2))
+            ymin = int(c_y - (h / 2))
+            xmax = int(c_x + (w / 2))
+            ymax = int(c_y + (h / 2))
+
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            lbl_scale = 0.8
+            c = round(max(img.shape)) * .03 * 1 / 22
+            thickness = max(round(c * 2), 1)
+            lbl_scale = lbl_scale * c
+            ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(obj['class'], font, lbl_scale, thickness)
+            lbl_box = [xmax-lbl_w, ymax, lbl_w, lbl_h+lbl_bline]
+
+            bbox = [xmin, ymin, w, h]
+
+            cv2.rectangle(img, lbl_box, color, -1)
+            cv2.rectangle(img, bbox, color, thickness)
+            cv2.putText(img, obj['class'], [xmax-lbl_w, ymax+lbl_h], font, lbl_scale, thickness)
 
     def filter_anno(self, annos_to_filter, annos_to_compare, filter_classes, iou_thres):
 
