@@ -7,6 +7,7 @@ import os
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import metrics
 
 
 class Analyse:
@@ -216,6 +217,46 @@ class Analyse:
         plt.ylabel('Average IOU')
         plt.show()
 
+    def per_class_ap(self, iou_thres):
+
+        image_names = list(self.gt_annos.keys())
+
+        tp = []
+        conf = []
+        pred_cls = []
+        target_cls = []
+
+        for img_name in image_names:
+
+            img_gt_annos = self.gt_annos[img_name]
+            img_pred_annos = self.pred_dets[img_name]
+
+            for idx, obj in enumerate(img_pred_annos['objects']):
+                iou, target_lbl = self.get_max_iou_with_true_label(obj, img_pred_annos, img_gt_annos)
+
+                if iou >= iou_thres:
+                    tp.append([True])
+                elif iou != 0:
+                    tp.append([False])
+
+                if iou != 0:
+                    conf.append(obj['conf'])
+                    pred_cls.append(obj['class'])
+
+                    target_cls.append(target_lbl)
+
+        tp = np.array(tp)
+        conf = np.array(conf)
+        pred_cls = np.array(pred_cls)
+        target_cls = np.array(target_cls)
+
+        tp, fp, p, r, f1, ap, unique_classes = metrics.ap_per_class(tp, conf, pred_cls, target_cls, plot=True, save_dir='.',
+                                                            names=self.gt_annos_obj.classes, eps=1e-16, prefix="")
+
+        # print(f"tp:{tp}, fp:{fp}, p:{p}, r:{r}, f1:{f1}, ap:{ap}, unique_classes:{unique_classes}")
+
+        return tp, fp, p, r, f1, ap, unique_classes
+
     def evaluate_metric(self, iou_thres):
 
         image_names = list(self.gt_annos.keys())
@@ -316,6 +357,23 @@ class Analyse:
 
         return max_iou
 
+    def get_max_iou_with_true_label(self, obj, annos1, annos2):
+
+        max_iou = 0
+        true_lbl = None
+
+        bbox1 = denormalize_bbox(obj, annos1['width'], annos1['height'])
+
+        for gt_obj in annos2['objects']:
+            bbox2 = denormalize_bbox(gt_obj, annos2['width'], annos2['height'])
+
+            iou = calc_iou(bbox1, bbox2)
+            if iou > max_iou:
+                max_iou = iou
+                true_lbl = gt_obj['class']
+
+        return max_iou, true_lbl
+
 
 if __name__ == "__main__":
     project_root = "..\..\.."
@@ -331,10 +389,11 @@ if __name__ == "__main__":
     # print(pd_dets)
 
     pt_analyser = Analyse(gt_anno, pd_dets, img_path)
-    pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
-                          maintain_ratio=True)
+    # pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
+    #                       maintain_ratio=True)
     # pt_analyser.view_mistakes(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
     #                           maintain_ratio=True)
-    pt_analyser.avg_iou_per_sample(save_dir=project_root)
+    # pt_analyser.avg_iou_per_sample(save_dir=project_root)
+    pt_analyser.per_class_ap(0.90)
     # pt_analyser.evaluate_metric(0.5)
     # pt_analyser.confusion_matrix(0.5)
