@@ -305,34 +305,39 @@ class Analyse:
 
         return tp, fp, fn, precision, recall, f1
 
-    def confusion_matrix(self, iou_thres):
-        tp, fp, fn, _, _, _ = self.evaluate_metric(iou_thres)
+    def confusion_matrix(self, conf=0.25, iou_thres=0.45, print_m=False, plot_m=True):
+        image_names = list(self.gt_annos.keys())
 
-        marks = np.array([[tp, fp],
-                          [fn, np.nan]])
+        detections = []
+        labels = []
 
-        fig, ax = plt.subplots()
-        ax.imshow(marks, cmap='Reds', interpolation="nearest")
+        for img_name in image_names:
 
-        # Show all ticks and label them with the respective list entries
-        ax.set_xticks(np.arange(2), labels=['True', 'False'])
-        ax.set_yticks(np.arange(2), labels=['True', 'False'])
+            img_pred_annos = self.pred_dets[img_name]
 
-        # Rotate the tick labels and set their alignment.
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-                 rotation_mode="anchor")
+            for idx, obj in enumerate(img_pred_annos['objects']):
+                temp = denormalize_bbox(obj, img_pred_annos['width'], img_pred_annos['height'])
+                temp.append(float(obj['conf']))
+                temp.append(self.pred_annos_obj.classes.index(obj['class']))
+                detections.append(temp)
 
-        # Loop over data dimensions and create text annotations.
-        for i in range(2):
-            for j in range(2):
-                ax.text(j, i, marks[i, j], ha="center", va="center", color="0")
+            img_gt_annos = self.gt_annos[img_name]
 
-        ax.set_title("Confusion Matrix")
-        ax.set_xlabel('Predicted Values')
-        ax.set_ylabel('Actual Values ')
+            for idx, obj in enumerate(img_gt_annos['objects']):
+                temp = [self.gt_annos_obj.classes.index(obj['class'])]
+                for x in denormalize_bbox(obj, img_gt_annos['width'], img_gt_annos['height']):
+                    temp.append(x)
+                labels.append(temp)
 
-        fig.tight_layout()
-        plt.show()
+        detections = np.array(detections)
+        labels = np.array(labels)
+
+        cnfn_m = metrics.ConfusionMatrix(len(self.gt_annos_obj.classes), conf, iou_thres)
+        cnfn_m.process_batch(detections, labels)
+        if print_m:
+            cnfn_m.print()
+        if plot_m:
+            cnfn_m.plot()
 
     def filter_class(self, cls_name, filter_classes):
         include_anno = True
@@ -377,10 +382,15 @@ class Analyse:
 
 if __name__ == "__main__":
     project_root = "..\..\.."
-    img_path = os.path.join(project_root, "examples", "sample_dataset", "images")
-    gt_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "gt")
-    det_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "dets")
-    class_file_path = os.path.join(project_root, "examples", "sample_dataset", "class.names")
+    # img_path = os.path.join(project_root, "examples", "sample_dataset", "images")
+    # gt_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "gt")
+    # det_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "preds")
+    # class_file_path = os.path.join(project_root, "examples", "sample_dataset", "class.names")
+
+    img_path = os.path.join(project_root, "examples", "coco128", "images")
+    gt_yolo_txt_path = os.path.join(project_root, "examples", "coco128", "gt")
+    det_yolo_txt_path = os.path.join(project_root, "examples", "coco128", "gt_dets")
+    class_file_path = os.path.join(project_root, "examples", "coco128", "class.names")
 
     gt_anno = Annotations(gt_yolo_txt_path, img_path, class_file_path, "yolo")
     # print(gt_anno)
@@ -396,4 +406,4 @@ if __name__ == "__main__":
     # pt_analyser.avg_iou_per_sample(save_dir=project_root)
     pt_analyser.per_class_ap(0.90)
     # pt_analyser.evaluate_metric(0.5)
-    # pt_analyser.confusion_matrix(0.5)
+    pt_analyser.confusion_matrix(conf=0, iou_thres=0, print_m=False, plot_m=True)

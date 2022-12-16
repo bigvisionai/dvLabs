@@ -144,14 +144,14 @@ class ConfusionMatrix:
                 self.matrix[self.nc, gc] += 1  # background FN
             return
 
-        detections = detections[detections[:, 4] > self.conf]
-        gt_classes = labels[:, 0].int()
-        detection_classes = detections[:, 5].int()
+        detections = detections[detections[:, 4].astype('float') > self.conf]
+        gt_classes = labels[:, 0].astype('int')
+        detection_classes = detections[:, 5].astype('int')
         iou = box_iou(labels[:, 1:], detections[:, :4])
 
         x = np.where(iou > self.iou_thres)
         if x[0].shape[0]:
-            matches = np.concatenate((np.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()
+            matches = np.concatenate((np.stack(x, 1), iou[x[0], x[1]][:, None]), 1)
             if x[0].shape[0] > 1:
                 matches = matches[matches[:, 2].argsort()[::-1]]
                 matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
@@ -220,19 +220,19 @@ def bbox_iou(box1, box2, xywh=True, GIoU=False, DIoU=False, CIoU=False, eps=1e-7
 
     # Get the coordinates of bounding boxes
     if xywh:  # transform from xywh to xyxy
-        (x1, y1, w1, h1), (x2, y2, w2, h2) = box1.chunk(4, -1), box2.chunk(4, -1)
+        (x1, y1, w1, h1), (x2, y2, w2, h2) = np.split(box1, 4, -1), np.split(box2, 4, -1)
         w1_, h1_, w2_, h2_ = w1 / 2, h1 / 2, w2 / 2, h2 / 2
         b1_x1, b1_x2, b1_y1, b1_y2 = x1 - w1_, x1 + w1_, y1 - h1_, y1 + h1_
         b2_x1, b2_x2, b2_y1, b2_y2 = x2 - w2_, x2 + w2_, y2 - h2_, y2 + h2_
     else:  # x1, y1, x2, y2 = box1
-        b1_x1, b1_y1, b1_x2, b1_y2 = box1.chunk(4, -1)
-        b2_x1, b2_y1, b2_x2, b2_y2 = box2.chunk(4, -1)
-        w1, h1 = b1_x2 - b1_x1, (b1_y2 - b1_y1).clamp(eps)
-        w2, h2 = b2_x2 - b2_x1, (b2_y2 - b2_y1).clamp(eps)
+        b1_x1, b1_y1, b1_x2, b1_y2 = np.split(box1, 4, -1)
+        b2_x1, b2_y1, b2_x2, b2_y2 = np.split(box2, 4, -1)
+        w1, h1 = b1_x2 - b1_x1, (b1_y2 - b1_y1).clip(eps)
+        w2, h2 = b2_x2 - b2_x1, (b2_y2 - b2_y1).clip(eps)
 
     # Intersection area
-    inter = (b1_x2.minimum(b2_x2) - b1_x1.maximum(b2_x1)).clamp(0) * \
-            (b1_y2.minimum(b2_y2) - b1_y1.maximum(b2_y1)).clamp(0)
+    inter = (np.minimum(b1_x2, b2_x2) - np.maximum(b1_x2, b2_x1)).clip(0) * \
+            (np.minimum(b1_y2, b2_y2) - np.maximum(b1_y1, b2_y1)).clip(0)
 
     # Union Area
     union = w1 * h1 + w2 * h2 - inter + eps
@@ -269,8 +269,8 @@ def box_iou(box1, box2, eps=1e-7):
     """
 
     # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
-    (a1, a2), (b1, b2) = box1.unsqueeze(1).chunk(2, 2), box2.unsqueeze(0).chunk(2, 2)
-    inter = (np.min(a2, b2) - np.max(a1, b1)).clamp(0).prod(2)
+    (a1, a2), (b1, b2) = np.split(np.expand_dims(box1.astype('int'), 1), 2, 2), np.split(np.expand_dims(box2.astype('int'), 0), 2, 2)
+    inter = (np.minimum(a2, b2) - np.maximum(a1, b1)).clip(0).prod(2)
 
     # IoU = inter / (area1 + area2 - inter)
     return inter / ((a2 - a1).prod(2) + (b2 - b1).prod(2) - inter + eps)
