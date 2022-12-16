@@ -1,166 +1,7 @@
 import os
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
-import cv2
 import json
-
-
-def read_pascal_voc_xml(annotations_dir=""):
-
-    path, dirs, files = next(os.walk(annotations_dir))
-
-    annotations = {}
-
-    for file in files:
-
-        if os.path.splitext(file)[-1] == ".xml":
-            root = ET.parse(os.path.join(path, file)).getroot()
-
-            img_name = root.find('filename').text
-
-            size = root.find('size')
-            img_width = int(size.find('width').text)
-            img_height = int(size.find('height').text)
-            img_depth = int(size.find('depth').text)
-
-            objects = root.findall('object')
-
-            read_objects = []
-
-            for idx, object in enumerate(objects):
-
-                class_name = object.find('name').text
-
-                bbox = object.find('bndbox')
-                box_left = int(bbox.find('xmin').text)
-                box_top = int(bbox.find('ymin').text)
-                box_right = int(bbox.find('xmax').text)
-                box_bottom = int(bbox.find('ymax').text)
-
-                box_width, box_height = box_right - box_left, box_bottom - box_top
-
-                center_x_ratio, center_y_ratio = float((box_left + int(box_width / 2)) / img_width), float(
-                    (box_top + int(box_height / 2)) / img_height)
-                width_ratio, height_ratio = float(box_width / img_width), float(box_height / img_height)
-
-                read_objects.append(
-                    {
-                        'class': class_name,
-                        'cx': center_x_ratio,
-                        'cy': center_y_ratio,
-                        'w': width_ratio,
-                        'h': height_ratio,
-                    }
-                )
-
-            annotations[img_name] = {
-                'width': img_width,
-                'height': img_height,
-                'depth': img_depth,
-                'objects': read_objects
-            }
-
-    return annotations
-
-
-def read_yolo(img_dir="", annotations_dir="", img_ext="", class_names=[]):
-
-    path, dirs, files = next(os.walk(img_dir))
-
-    annotations = {}
-
-    for img_name in files:
-
-        if os.path.splitext(img_name)[-1] in ['.jpeg', '.jpg', '.png']:
-
-            anon_file = os.path.splitext(img_name)[0] + '.txt'
-
-            try:
-                img = cv2.imread(os.path.join(path, img_name))
-
-                img_height = img.shape[0]
-                img_width = img.shape[1]
-                img_depth = img.shape[2]
-            except:
-                img_height = None
-                img_width = None
-
-            read_objects = []
-
-            with open(os.path.join(annotations_dir, anon_file), 'r') as f:
-
-                for idx, line in enumerate(f):
-
-                    words = line.strip().split(" ")
-
-                    read_objects.append(
-                        {
-                            'class': class_names[int(words[0])],
-                            'cx': float(words[1]),
-                            'cy': float(words[2]),
-                            'w': float(words[3]),
-                            'h': float(words[4]),
-                        }
-                    )
-
-            annotations[img_name] = {
-                'width': img_width,
-                'height': img_height,
-                'depth': img_depth,
-                'objects': read_objects
-            }
-
-    return annotations
-
-
-def read_coco(json_file_path=""):
-
-    with open(json_file_path, 'r') as json_file:
-        root = json.load(json_file)
-
-        annotations = {}
-
-        class_names = {}
-        for category in root['categories']:
-            class_names[category['id']] = category['name']
-
-        img_id_map = {}
-        for image in root['images']:
-            img_id_map[image['id']] = image['file_name']
-
-            annotations[image['file_name']] = {
-                'width': image['width'],
-                'height': image['height'],
-                'objects': []
-            }
-
-        for object in root['annotations']:
-
-            img_name = img_id_map[object['image_id']]
-            class_name = class_names[object['category_id']]
-
-            box_left = object['bbox'][0]
-            box_top = object['bbox'][1]
-            box_width = object['bbox'][2]
-            box_height = object['bbox'][3]
-
-            img_width, img_height = annotations[img_name]['width'], annotations[img_name]['height'],
-
-            center_x_ratio, center_y_ratio = float((box_left + int(box_width / 2)) / img_width), float(
-                (box_top + int(box_height / 2)) / img_height)
-            width_ratio, height_ratio = float(box_width / img_width), float(box_height / img_height)
-
-            annotations[img_name]['objects'].append(
-                {
-                    'class': class_name,
-                    'cx': center_x_ratio,
-                    'cy': center_y_ratio,
-                    'w': width_ratio,
-                    'h': height_ratio,
-                }
-            )
-
-    return annotations
 
 
 def to_yolo(annotations, save_dir="", class_names=[]):
@@ -309,26 +150,17 @@ def to_coco(annotations, save_dir=""):
             f.write(json.dumps(anno_out, ensure_ascii=False, indent=4))
 
 
-def pascal_voc_to_yolo(annotation_dir='', save_dir='', class_names=[]):
-    annotations = read_pascal_voc_xml(annotation_dir)
+if __name__ == "__main__":
+    from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
 
-    to_yolo(annotations, save_dir, class_names=class_names)
+    class_names = ["vest", "helmet"]
 
+    project_root = "..\..\.."
 
-def yolo_to_pascal_voc(img_dir='', annotation_dir='', save_dir='', class_names=[]):
-    annotations = read_yolo(img_dir, annotation_dir, class_names=class_names)
+    img_path = os.path.join(project_root, "examples", "images")
+    coco_json_path = os.path.join(project_root, "examples", "annotations", "coco_jsons", "data.json")
+    class_file_path = os.path.join(project_root, "examples", "class.names")
 
-    to_pascal(annotations, save_dir)
-
-
-class_names = ["vest", "helmet"]
-
-project_root = "..\..\.."
-
-pascal_voc_to_yolo(os.path.join(project_root, "examples", "annotations", "pascal_voc_xmls"), os.path.join(project_root, "outputs"), class_names)
-
-yolo_to_pascal_voc(os.path.join(project_root, "examples", "images"), os.path.join(project_root, "examples", "annotations", "yolo_txts"), os.path.join(project_root, "outputs"), class_names)
-
-
-annotations = read_coco(os.path.join(project_root, "examples", "annotations", "coco_jsons", "data.json"))
-to_coco(annotations, os.path.join(project_root, "outputs"))
+    anno = Annotations(coco_json_path, img_path, class_file_path, "coco")
+    print(anno.annotations)
+    to_yolo(anno.annotations, os.path.join(project_root, "outputs"), ["Workers", "head", "helmet", "Workers", "person"])

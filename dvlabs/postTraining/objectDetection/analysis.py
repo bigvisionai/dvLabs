@@ -1,90 +1,141 @@
 from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
+from dvlabs.dataPreparation.objectDetection.convert_annotations import to_yolo
+from dvlabs.utils import denormalize_bbox, calc_iou, get_batches, get_vid_writer, create_grid, \
+    calc_precision_recall_f1, combine_img_annos
 import os
 import cv2
-import math
+import matplotlib.pyplot as plt
 import numpy as np
 
 
-def grid_view(gt_anno, pred_anno, images_dir, save_dir=None, grid_size=(1, 1), resolution=(1280, 720), maintain_ratio=True, classes=[],
-              iou_thres=1):
+class Analyse:
+    def __init__(self, gt_annos_obj, pred_annos_obj, img_dir):
 
-    image_names = list(gt_anno.keys())
+        self.gt_annos_obj = gt_annos_obj
+        self.pred_annos_obj = pred_annos_obj
+        self.gt_annos = gt_annos_obj.annotations
+        self.pred_annos = pred_annos_obj.annotations
+        self.img_dir = img_dir
 
-    batch = grid_size[0] * grid_size[1]
+    def grid_view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720),
+                  maintain_ratio=True, filter_classes=[], iou_thres=1):
 
-    resize_w, resize_h = round(resolution[0]/grid_size[0]), round(resolution[1]/grid_size[1])
+        image_names = list(self.gt_annos.keys())
 
-    vid_writer = None
-    if save_dir is not None:
-        vid_writer = cv2.VideoWriter(os.path.join(save_dir, "grid_output.mp4"),
-                                     cv2.VideoWriter_fourcc(*'mp4v'), fps=1,
-                                     frameSize=(resize_w*grid_size[0], resize_h*grid_size[1]))
+        batch_size = grid_size[0] * grid_size[1]
 
-    init_idx = 0
+        resize_w, resize_h = round(resolution[0] / grid_size[0]), round(resolution[1] / grid_size[1])
 
-    for x in range(math.ceil(len(image_names)/batch)):
+        vid_writer = None
+        if save_dir is not None:
+            vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output"), 1,
+                                        (resize_w*grid_size[0], resize_h*grid_size[1]))
 
-        last_idx = init_idx + batch
-        grid_img_names = image_names[init_idx:last_idx]
-        init_idx = last_idx
+        batches = get_batches(image_names, batch_size)
 
-        grid_imgs = []
+        for batch in batches:
+            batch_imgs = []
+            for img_name in batch:
+                img_path = os.path.join(self.img_dir, img_name)
+                img = cv2.imread(img_path)
 
-        for img_name in grid_img_names:
-            img_path = os.path.join(images_dir, img_name)
+                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], filter_classes,
+                                               iou_thres)
+                filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], filter_classes,
+                                                 iou_thres)
 
-            img = cv2.imread(img_path)
-            img_h, img_w, _ = img.shape
+                self.display_anno(img, filtered_gt, (0, 255, 0))
+                self.display_anno(img, filtered_pred, (0, 255, 255))
 
-            filtered_gt, filtered_pred = filter_anno(gt_anno[img_name], pred_anno[img_name], iou_thres)
+                batch_imgs.append(img)
 
-            display_anno(img, filtered_gt, (0, 255, 0), classes)
+            grid = create_grid(batch_imgs, grid_size, (resize_h, resize_w), maintain_ratio)
 
-            display_anno(img, filtered_pred, (0, 255, 255), classes)
-
-            grid_imgs.append(img)
-
-        ver_imgs = []
-        count = 0
-        for y in range(int(grid_size[1])):
-            row = []
-            for x in range(int(grid_size[0])):
-                try:
-                    img = grid_imgs[count]
-                except IndexError:
-                    img = np.zeros(shape=[100, 100, 3], dtype=np.uint8)
-                img = resize_and_pad(img, (resize_h, resize_w), maintain_ratio)
-                row.append(img)
-                count += 1
-            hor_imgs = np.hstack(row)
-            ver_imgs.append(hor_imgs)
-
-        grid = np.vstack(ver_imgs)
+            if vid_writer is not None:
+                vid_writer.write(grid)
+            else:
+                cv2.imshow('grid', grid)
+                key = cv2.waitKey(0)
+                if key == 27 or key == ord('q'):
+                    break
 
         if vid_writer is not None:
-            vid_writer.write(grid)
-        else:
-            cv2.imshow('grid', grid)
-            key = cv2.waitKey(0)
-            if key == 27 or key == ord('q'):
-                break
+            vid_writer.release()
 
-    if vid_writer is not None:
-        vid_writer.release()
+    def view_mistakes(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720),
+                  maintain_ratio=True, filter_classes=[], iou_thres=1):
 
+        image_names = list(self.gt_annos.keys())
 
-def display_anno(img, img_anon, color=(0, 255, 0), classes=[]):
+        batch_size = grid_size[0] * grid_size[1]
 
-    for obj in img_anon['objects']:
-        cls_name = obj['class']
+        resize_w, resize_h = round(resolution[0] / grid_size[0]), round(resolution[1] / grid_size[1])
 
-        show = True
+        vid_writer = None
+        if save_dir is not None:
+            vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output"), 1,
+                                        (resize_w*grid_size[0], resize_h*grid_size[1]))
 
-        if len(classes) is not 0:
-            if cls_name not in classes:
-                show = False
+        filtered_gt_annos = {}
+        filtered_pred_annos = {}
+        combined_mistakes_anno = {}
+        filtered_image_names = []
 
-        if show:
+        for img_name in image_names:
+            filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], filter_classes,
+                                           iou_thres)
+
+            filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], filter_classes,
+                                             iou_thres)
+
+            if (len(filtered_gt['objects']) is not 0) or (len(filtered_pred['objects']) is not 0):
+                filtered_gt_annos[img_name] = filtered_gt
+                filtered_pred_annos[img_name] = filtered_pred
+                filtered_image_names.append(img_name)
+
+                # Combine mistakes annotations to one object
+                combined_mistakes_anno[img_name] = combine_img_annos(filtered_gt, filtered_pred)
+
+        # Save mistakes annotations
+        if save_dir is not None:
+            save_anno_dir = os.path.join(save_dir, "annotations")
+            if not os.path.exists(save_anno_dir):
+                os.makedirs(save_anno_dir)
+
+            to_yolo(combined_mistakes_anno, save_anno_dir, self.gt_annos_obj.classes)
+
+        batches = get_batches(filtered_image_names, batch_size)
+
+        for batch in batches:
+            batch_imgs = []
+            for img_name in batch:
+                img_path = os.path.join(self.img_dir, img_name)
+                img = cv2.imread(img_path)
+
+                filtered_gt = filtered_gt_annos[img_name]
+                filtered_pred = filtered_pred_annos[img_name]
+
+                self.display_anno(img, filtered_gt, (0, 255, 0))
+                self.display_anno(img, filtered_pred, (0, 255, 255))
+
+                batch_imgs.append(img)
+
+            grid = create_grid(batch_imgs, grid_size, (resize_h, resize_w), maintain_ratio)
+
+            if vid_writer is not None:
+                vid_writer.write(grid)
+            else:
+                cv2.imshow('grid', grid)
+                key = cv2.waitKey(0)
+                if key == 27 or key == ord('q'):
+                    break
+
+        if vid_writer is not None:
+            vid_writer.release()
+
+    def display_anno(self, img, img_anon, color=(0, 255, 0)):
+
+        for obj in img_anon['objects']:
             c_x = obj['cx'] * img_anon['width']
             c_y = obj['cy'] * img_anon['height']
             w = int(obj['w'] * img_anon['width'])
@@ -97,137 +148,172 @@ def display_anno(img, img_anon, color=(0, 255, 0), classes=[]):
             c = round(max(img.shape)) * .03 * 1 / 22
             thickness = max(round(c * 2), 1)
             lbl_scale = lbl_scale * c
-            ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(cls_name, font, lbl_scale, thickness)
-            # print((lbl_w, lbl_h), lbl_bline)
+            ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(obj['class'], font, lbl_scale, thickness)
             lbl_box = [xmin, ymin-lbl_h-lbl_bline, lbl_w, lbl_h+lbl_bline]
 
             bbox = [xmin, ymin, w, h]
 
             cv2.rectangle(img, lbl_box, color, -1)
             cv2.rectangle(img, bbox, color, thickness)
-            cv2.putText(img, cls_name, [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
+            cv2.putText(img, obj['class'], [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
 
+    def filter_anno(self, annos_to_filter, annos_to_compare, filter_classes, iou_thres):
 
-def filter_anno(gt_annos, pred_annos, iou_thres):
+        filtered_annos = annos_to_filter.copy()
+        filtered_pred_objs = []
 
-    filtered_pred_objs = []
+        for idx, to_filter_obj in enumerate(annos_to_filter['objects']):
 
-    for idx, pred_obj in enumerate(pred_annos['objects']):
-        bbox_iou = get_max_iou(pred_obj, pred_annos, gt_annos)
+            if self.filter_class(to_filter_obj['class'], filter_classes):
 
-        if not bbox_iou > iou_thres:
-            filtered_pred_objs.append(pred_obj)
+                max_bbox_iou = self.get_max_iou(to_filter_obj, annos_to_filter, annos_to_compare)
 
-    pred_annos['objects'] = filtered_pred_objs
+                if not max_bbox_iou > iou_thres:
+                    filtered_pred_objs.append(to_filter_obj)
 
-    return gt_annos, pred_annos
+        filtered_annos['objects'] = filtered_pred_objs
 
+        return filtered_annos
 
-def get_max_iou(obj, pred_annos, gt_annos):
+    def avg_iou_per_sample(self, save_dir=None):
 
-    max_iou = 0
+        avg_IOUs = []
 
-    for gt_obj in gt_annos['objects']:
-        if obj['class'] == gt_obj['class']:
-            pred_bbox = denormalize_bbox(obj, pred_annos['width'], pred_annos['height'])
-            gt_bbox = denormalize_bbox(gt_obj, gt_annos['width'], gt_annos['height'])
+        image_names = list(self.gt_annos.keys())
 
-            iou = calc_iou(pred_bbox, gt_bbox)
-            if iou > max_iou:
-                max_iou = iou
+        for img_name in image_names:
+            img_gt_annos = self.gt_annos[img_name]
+            img_pred_annos = self.pred_annos[img_name]
 
-    return max_iou
+            sum_iou = 0
+            samples = 0
 
+            for idx, obj in enumerate(img_pred_annos['objects']):
+                iou = self.get_max_iou(obj, img_pred_annos, img_gt_annos)
+                sum_iou += iou
+                samples += 1
 
-def denormalize_bbox(anno_obj, img_w, img_h):
-    c_x = anno_obj['cx'] * img_w
-    c_y = anno_obj['cy'] * img_h
-    w = round(anno_obj['w'] * img_w)
-    h = round(anno_obj['h'] * img_h)
+            for idx, obj in enumerate(img_gt_annos['objects']):
+                iou = self.get_max_iou(obj, img_gt_annos, img_pred_annos)
+                if iou == 0:
+                    samples += 1
 
-    xmin = round(c_x - (w / 2))
-    ymin = round(c_y - (h / 2))
-    xmax = round(c_x + (w / 2))
-    ymax = round(c_y + (h / 2))
+            if samples == 0:
+                avg_IOUs.append(None)
+            else:
+                avg_IOUs.append(sum_iou/samples)
 
-    return [xmin, ymin, xmax, ymax]
+        # Save mistakes annotations
+        if save_dir is not None:
+            with open(os.path.join(save_dir, "avg_iou_per_sample.txt"), 'w') as f:
+                for img_name, iou in zip(image_names, avg_IOUs):
+                    f.write(f"{img_name} {round(iou, 3)}\n")
 
+        plt.plot(range(0, len(image_names)), avg_IOUs)
+        plt.title('Average IOU per Sample')
+        plt.xlabel('Samples')
+        plt.ylabel('Average IOU')
+        plt.show()
 
-def calc_iou(pred_bbox, gt_bbox):
-    # coordinates of the area of intersection.
-    ix1 = np.maximum(gt_bbox[0], pred_bbox[0])
-    iy1 = np.maximum(gt_bbox[1], pred_bbox[1])
-    ix2 = np.minimum(gt_bbox[2], pred_bbox[2])
-    iy2 = np.minimum(gt_bbox[3], pred_bbox[3])
+    def evaluate_metric(self, iou_thres):
 
-    # Intersection height and width.
-    i_height = np.maximum(iy2 - iy1 + 1, np.array(0.))
-    i_width = np.maximum(ix2 - ix1 + 1, np.array(0.))
+        image_names = list(self.gt_annos.keys())
 
-    area_of_intersection = i_height * i_width
+        tp = fp = fn = 0
 
-    # Ground Truth dimensions.
-    gt_height = gt_bbox[3] - gt_bbox[1] + 1
-    gt_width = gt_bbox[2] - gt_bbox[0] + 1
+        for img_name in image_names:
 
-    # Prediction dimensions.
-    pd_height = pred_bbox[3] - pred_bbox[1] + 1
-    pd_width = pred_bbox[2] - pred_bbox[0] + 1
+            img_tp, img_fp, img_fn, _, _, _ = self.evaluate_metric_img(img_name, iou_thres)
 
-    area_of_union = gt_height * gt_width + pd_height * pd_width - area_of_intersection
+            tp += img_tp
+            fp += img_fp
+            fn += img_fn
 
-    iou = area_of_intersection / area_of_union
+        precision, recall, f1 = calc_precision_recall_f1(tp, fp, fn)
 
-    return iou
+        print(f"TPs:{tp}, FPs:{fp}, FNs:{fn}")
+        print(f"Precision:{precision}, Recall:{recall}, F1:{f1}")
 
+        return tp, fp, fn, precision, recall, f1
 
-def resize_and_pad(img, size, maintain_ratio, pad_color=114):
+    def evaluate_metric_img(self, img_name, iou_thres):
+        tp = fp = fn = 0
 
-    h, w = img.shape[:2]
-    sh, sw = size
+        img_gt_annos = self.gt_annos[img_name]
+        img_pred_annos = self.pred_annos[img_name]
 
-    # interpolation method
-    if h > sh or w > sw:  # shrinking image
-        interp = cv2.INTER_AREA
-    else:  # stretching image
-        interp = cv2.INTER_CUBIC
+        for idx, obj in enumerate(img_pred_annos['objects']):
+            iou = self.get_max_iou(obj, img_pred_annos, img_gt_annos)
 
-    if maintain_ratio is True:
-        # aspect ratio of image
-        img_aspect = w / h  # if on Python 2, you might need to cast as a float: float(w)/h
+            if iou >= iou_thres:
+                tp += 1
+            elif iou < iou_thres:
+                fp += 1
 
-        final_aspect = sw / sh
+        for idx, obj in enumerate(img_gt_annos['objects']):
+            iou = self.get_max_iou(obj, img_gt_annos, img_pred_annos)
 
-        # compute scaling and pad sizing
-        if img_aspect > final_aspect:  # horizontal image
-            new_w = sw
-            new_h = np.round(new_w / img_aspect).astype(int)
-            pad_vert = (sh-new_h)/2
-            pad_top, pad_bot = abs(np.floor(pad_vert).astype(int)), abs(np.ceil(pad_vert).astype(int))
-            pad_left, pad_right = 0, 0
-        elif img_aspect < final_aspect:  # vertical image
-            new_h = sh
-            new_w = np.round(new_h * img_aspect).astype(int)
-            pad_horz = (sw-new_w)/2
-            pad_left, pad_right = abs(np.floor(pad_horz).astype(int)), abs(np.ceil(pad_horz).astype(int))
-            pad_top, pad_bot = 0, 0
-        else:  # square image
-            new_h, new_w = sh, sw
-            pad_left, pad_right, pad_top, pad_bot = 0, 0, 0, 0
+            if iou == 0:
+                fn += 1
 
-        # set pad color
-        if len(img.shape) is 3 and not isinstance(pad_color, (list, tuple, np.ndarray)):
-            # color image but only one color provided
-            pad_color = [pad_color] * 3
+        precision, recall, f1 = calc_precision_recall_f1(tp, fp, fn)
 
-        # scale and pad
-        scaled_img = cv2.resize(img, (new_w, new_h), interpolation=interp)
-        scaled_img = cv2.copyMakeBorder(scaled_img, pad_top, pad_bot, pad_left, pad_right,
-                                        borderType=cv2.BORDER_CONSTANT, value=pad_color)
-    else:
-        # scale
-        scaled_img = cv2.resize(img, (sw, sh), interpolation=interp)
-    return scaled_img
+        # print(f"TPs:{tp}, FPs:{fp}, FNs:{fn}")
+        # print(f"Precision:{precision}, Recall:{recall}, F1:{f1}")
+
+        return tp, fp, fn, precision, recall, f1
+
+    def confusion_matrix(self, iou_thres):
+        tp, fp, fn, _, _, _ = self.evaluate_metric(iou_thres)
+
+        marks = np.array([[tp, fp],
+                          [fn, np.nan]])
+
+        fig, ax = plt.subplots()
+        ax.imshow(marks, cmap='Reds', interpolation="nearest")
+
+        # Show all ticks and label them with the respective list entries
+        ax.set_xticks(np.arange(2), labels=['True', 'False'])
+        ax.set_yticks(np.arange(2), labels=['True', 'False'])
+
+        # Rotate the tick labels and set their alignment.
+        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
+                 rotation_mode="anchor")
+
+        # Loop over data dimensions and create text annotations.
+        for i in range(2):
+            for j in range(2):
+                ax.text(j, i, marks[i, j], ha="center", va="center", color="0")
+
+        ax.set_title("Confusion Matrix")
+        ax.set_xlabel('Predicted Values')
+        ax.set_ylabel('Actual Values ')
+
+        fig.tight_layout()
+        plt.show()
+
+    def filter_class(self, cls_name, filter_classes):
+        include_anno = True
+        if len(filter_classes) is not 0:
+            if cls_name not in filter_classes:
+                include_anno = False
+        return include_anno
+
+    def get_max_iou(self, obj, annos1, annos2):
+
+        max_iou = 0
+
+        bbox1 = denormalize_bbox(obj, annos1['width'], annos1['height'])
+
+        for gt_obj in annos2['objects']:
+            if obj['class'] == gt_obj['class']:
+                bbox2 = denormalize_bbox(gt_obj, annos2['width'], annos2['height'])
+
+                iou = calc_iou(bbox1, bbox2)
+                if iou > max_iou:
+                    max_iou = iou
+
+        return max_iou
 
 
 if __name__ == "__main__":
@@ -237,12 +323,17 @@ if __name__ == "__main__":
     pd_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "preds")
     class_file_path = os.path.join(project_root, "examples", "sample_dataset", "class.names")
 
-    gt_anno = Annotations(gt_yolo_txt_path, img_path, class_file_path, "yolo").annotations
+    gt_anno = Annotations(gt_yolo_txt_path, img_path, class_file_path, "yolo")
     # print(gt_anno)
 
-    pd_anno = Annotations(pd_yolo_txt_path, img_path, class_file_path, "yolo").annotations
+    pd_anno = Annotations(pd_yolo_txt_path, img_path, class_file_path, "yolo")
     # print(pd_anno)
 
-    # grid_view(gt_anno, pd_anno, img_path)
-    grid_view(gt_anno, pd_anno, img_path, grid_size=(3, 3), resolution=(1280, 720),
-              classes=['without_mask'], iou_thres=.5, maintain_ratio=True)
+    pt_analyser = Analyse(gt_anno, pd_anno, img_path)
+    # pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
+    #                       maintain_ratio=True)
+    # pt_analyser.view_mistakes(grid_size=(3, 3), save_dir=project_root, resolution=(1280, 720), filter_classes=[], iou_thres=.75,
+    #                           maintain_ratio=True)
+    pt_analyser.avg_iou_per_sample(save_dir=project_root)
+    # pt_analyser.evaluate_metric(0.5)
+    # pt_analyser.confusion_matrix(0.5)
