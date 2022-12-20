@@ -1,4 +1,5 @@
 from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
+from dvlabs.postTraining.objectDetection.detections import Detections
 from dvlabs.dataPreparation.objectDetection.convert_annotations import to_yolo
 from dvlabs.utils import denormalize_bbox, calc_iou, get_batches, get_vid_writer, create_grid, \
     calc_precision_recall_f1, combine_img_annos
@@ -6,15 +7,16 @@ import os
 import cv2
 import matplotlib.pyplot as plt
 import numpy as np
+import metrics
 
 
 class Analyse:
-    def __init__(self, gt_annos_obj, pred_annos_obj, img_dir):
+    def __init__(self, gt_annos_obj, pred_dets_obj, img_dir):
 
         self.gt_annos_obj = gt_annos_obj
-        self.pred_annos_obj = pred_annos_obj
+        self.pred_annos_obj = pred_dets_obj
         self.gt_annos = gt_annos_obj.annotations
-        self.pred_annos = pred_annos_obj.annotations
+        self.pred_dets = pred_dets_obj.detections
         self.img_dir = img_dir
 
     def grid_view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720),
@@ -39,12 +41,12 @@ class Analyse:
                 img_path = os.path.join(self.img_dir, img_name)
                 img = cv2.imread(img_path)
 
-                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], filter_classes,
+                filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_dets[img_name], filter_classes,
                                                iou_thres)
-                filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], filter_classes,
+                filtered_pred = self.filter_anno(self.pred_dets[img_name], self.gt_annos[img_name], filter_classes,
                                                  iou_thres)
 
-                self.display_anno(img, filtered_gt, (0, 255, 0))
+                self.display_gt(img, filtered_gt, (0, 255, 0))
                 self.display_anno(img, filtered_pred, (0, 255, 255))
 
                 batch_imgs.append(img)
@@ -82,10 +84,10 @@ class Analyse:
         filtered_image_names = []
 
         for img_name in image_names:
-            filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_annos[img_name], filter_classes,
+            filtered_gt = self.filter_anno(self.gt_annos[img_name], self.pred_dets[img_name], filter_classes,
                                            iou_thres)
 
-            filtered_pred = self.filter_anno(self.pred_annos[img_name], self.gt_annos[img_name], filter_classes,
+            filtered_pred = self.filter_anno(self.pred_dets[img_name], self.gt_annos[img_name], filter_classes,
                                              iou_thres)
 
             if (len(filtered_gt['objects']) is not 0) or (len(filtered_pred['objects']) is not 0):
@@ -115,7 +117,7 @@ class Analyse:
                 filtered_gt = filtered_gt_annos[img_name]
                 filtered_pred = filtered_pred_annos[img_name]
 
-                self.display_anno(img, filtered_gt, (0, 255, 0))
+                self.display_gt(img, filtered_gt, (0, 255, 0))
                 self.display_anno(img, filtered_pred, (0, 255, 255))
 
                 batch_imgs.append(img)
@@ -157,6 +159,32 @@ class Analyse:
             cv2.rectangle(img, bbox, color, thickness)
             cv2.putText(img, obj['class'], [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
 
+    def display_gt(self, img, img_anon, color=(0, 255, 0)):
+
+        for obj in img_anon['objects']:
+            c_x = obj['cx'] * img_anon['width']
+            c_y = obj['cy'] * img_anon['height']
+            w = int(obj['w'] * img_anon['width'])
+            h = int(obj['h'] * img_anon['height'])
+            xmin = int(c_x - (w / 2))
+            ymin = int(c_y - (h / 2))
+            xmax = int(c_x + (w / 2))
+            ymax = int(c_y + (h / 2))
+
+            font = cv2.FONT_HERSHEY_SIMPLEX
+            lbl_scale = 0.8
+            c = round(max(img.shape)) * .03 * 1 / 22
+            thickness = max(round(c * 2), 1)
+            lbl_scale = lbl_scale * c
+            ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(obj['class'], font, lbl_scale, thickness)
+            lbl_box = [xmax-lbl_w, ymax, lbl_w, lbl_h+lbl_bline]
+
+            bbox = [xmin, ymin, w, h]
+
+            cv2.rectangle(img, lbl_box, color, -1)
+            cv2.rectangle(img, bbox, color, thickness)
+            cv2.putText(img, obj['class'], [xmax-lbl_w, ymax+lbl_h], font, lbl_scale, thickness)
+
     def filter_anno(self, annos_to_filter, annos_to_compare, filter_classes, iou_thres):
 
         filtered_annos = annos_to_filter.copy()
@@ -183,7 +211,7 @@ class Analyse:
 
         for img_name in image_names:
             img_gt_annos = self.gt_annos[img_name]
-            img_pred_annos = self.pred_annos[img_name]
+            img_pred_annos = self.pred_dets[img_name]
 
             sum_iou = 0
             samples = 0
@@ -215,6 +243,46 @@ class Analyse:
         plt.ylabel('Average IOU')
         plt.show()
 
+    def per_class_ap(self, iou_thres):
+
+        image_names = list(self.gt_annos.keys())
+
+        tp = []
+        conf = []
+        pred_cls = []
+        target_cls = []
+
+        for img_name in image_names:
+
+            img_gt_annos = self.gt_annos[img_name]
+            img_pred_annos = self.pred_dets[img_name]
+
+            for idx, obj in enumerate(img_pred_annos['objects']):
+                iou, target_lbl = self.get_max_iou_with_true_label(obj, img_pred_annos, img_gt_annos)
+
+                if iou >= iou_thres:
+                    tp.append([True])
+                elif iou != 0:
+                    tp.append([False])
+
+                if iou != 0:
+                    conf.append(obj['conf'])
+                    pred_cls.append(obj['class'])
+
+                    target_cls.append(target_lbl)
+
+        tp = np.array(tp)
+        conf = np.array(conf)
+        pred_cls = np.array(pred_cls)
+        target_cls = np.array(target_cls)
+
+        tp, fp, p, r, f1, ap, unique_classes = metrics.ap_per_class(tp, conf, pred_cls, target_cls, plot=True, save_dir='.',
+                                                            names=self.gt_annos_obj.classes, eps=1e-16, prefix="")
+
+        # print(f"tp:{tp}, fp:{fp}, p:{p}, r:{r}, f1:{f1}, ap:{ap}, unique_classes:{unique_classes}")
+
+        return tp, fp, p, r, f1, ap, unique_classes
+
     def evaluate_metric(self, iou_thres):
 
         image_names = list(self.gt_annos.keys())
@@ -240,7 +308,7 @@ class Analyse:
         tp = fp = fn = 0
 
         img_gt_annos = self.gt_annos[img_name]
-        img_pred_annos = self.pred_annos[img_name]
+        img_pred_annos = self.pred_dets[img_name]
 
         for idx, obj in enumerate(img_pred_annos['objects']):
             iou = self.get_max_iou(obj, img_pred_annos, img_gt_annos)
@@ -263,34 +331,39 @@ class Analyse:
 
         return tp, fp, fn, precision, recall, f1
 
-    def confusion_matrix(self, iou_thres):
-        tp, fp, fn, _, _, _ = self.evaluate_metric(iou_thres)
+    def confusion_matrix(self, conf=0.25, iou_thres=0.45, print_m=False, plot_m=True):
+        image_names = list(self.gt_annos.keys())
 
-        marks = np.array([[tp, fp],
-                          [fn, np.nan]])
+        detections = []
+        labels = []
 
-        fig, ax = plt.subplots()
-        ax.imshow(marks, cmap='Reds', interpolation="nearest")
+        for img_name in image_names:
 
-        # Show all ticks and label them with the respective list entries
-        ax.set_xticks(np.arange(2), labels=['True', 'False'])
-        ax.set_yticks(np.arange(2), labels=['True', 'False'])
+            img_pred_annos = self.pred_dets[img_name]
 
-        # Rotate the tick labels and set their alignment.
-        plt.setp(ax.get_xticklabels(), rotation=45, ha="right",
-                 rotation_mode="anchor")
+            for idx, obj in enumerate(img_pred_annos['objects']):
+                temp = denormalize_bbox(obj, img_pred_annos['width'], img_pred_annos['height'])
+                temp.append(float(obj['conf']))
+                temp.append(self.pred_annos_obj.classes.index(obj['class']))
+                detections.append(temp)
 
-        # Loop over data dimensions and create text annotations.
-        for i in range(2):
-            for j in range(2):
-                ax.text(j, i, marks[i, j], ha="center", va="center", color="0")
+            img_gt_annos = self.gt_annos[img_name]
 
-        ax.set_title("Confusion Matrix")
-        ax.set_xlabel('Predicted Values')
-        ax.set_ylabel('Actual Values ')
+            for idx, obj in enumerate(img_gt_annos['objects']):
+                temp = [self.gt_annos_obj.classes.index(obj['class'])]
+                for x in denormalize_bbox(obj, img_gt_annos['width'], img_gt_annos['height']):
+                    temp.append(x)
+                labels.append(temp)
 
-        fig.tight_layout()
-        plt.show()
+        detections = np.array(detections)
+        labels = np.array(labels)
+
+        cnfn_m = metrics.ConfusionMatrix(len(self.gt_annos_obj.classes), conf, iou_thres)
+        cnfn_m.process_batch(detections, labels)
+        if print_m:
+            cnfn_m.print()
+        if plot_m:
+            cnfn_m.plot()
 
     def filter_class(self, cls_name, filter_classes):
         include_anno = True
@@ -315,25 +388,48 @@ class Analyse:
 
         return max_iou
 
+    def get_max_iou_with_true_label(self, obj, annos1, annos2):
+
+        max_iou = 0
+        true_lbl = None
+
+        bbox1 = denormalize_bbox(obj, annos1['width'], annos1['height'])
+
+        for gt_obj in annos2['objects']:
+            bbox2 = denormalize_bbox(gt_obj, annos2['width'], annos2['height'])
+
+            iou = calc_iou(bbox1, bbox2)
+            if iou > max_iou:
+                max_iou = iou
+                true_lbl = gt_obj['class']
+
+        return max_iou, true_lbl
+
 
 if __name__ == "__main__":
     project_root = "..\..\.."
-    img_path = os.path.join(project_root, "examples", "sample_dataset", "images")
-    gt_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "gt")
-    pd_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "preds")
-    class_file_path = os.path.join(project_root, "examples", "sample_dataset", "class.names")
+    # img_path = os.path.join(project_root, "examples", "sample_dataset", "images")
+    # gt_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "gt")
+    # det_yolo_txt_path = os.path.join(project_root, "examples", "sample_dataset", "preds")
+    # class_file_path = os.path.join(project_root, "examples", "sample_dataset", "class.names")
+
+    img_path = os.path.join(project_root, "examples", "coco128", "images")
+    gt_yolo_txt_path = os.path.join(project_root, "examples", "coco128", "gt")
+    det_yolo_txt_path = os.path.join(project_root, "examples", "coco128", "gt_dets")
+    class_file_path = os.path.join(project_root, "examples", "coco128", "class.names")
 
     gt_anno = Annotations(gt_yolo_txt_path, img_path, class_file_path, "yolo")
     # print(gt_anno)
 
-    pd_anno = Annotations(pd_yolo_txt_path, img_path, class_file_path, "yolo")
-    # print(pd_anno)
+    pd_dets = Detections(det_yolo_txt_path, img_path, class_file_path, "yolo")
+    # print(pd_dets)
 
-    pt_analyser = Analyse(gt_anno, pd_anno, img_path)
+    pt_analyser = Analyse(gt_anno, pd_dets, img_path)
     # pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
     #                       maintain_ratio=True)
-    # pt_analyser.view_mistakes(grid_size=(3, 3), save_dir=project_root, resolution=(1280, 720), filter_classes=[], iou_thres=.75,
+    # pt_analyser.view_mistakes(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
     #                           maintain_ratio=True)
-    pt_analyser.avg_iou_per_sample(save_dir=project_root)
+    # pt_analyser.avg_iou_per_sample(save_dir=project_root)
+    pt_analyser.per_class_ap(0.90)
     # pt_analyser.evaluate_metric(0.5)
-    # pt_analyser.confusion_matrix(0.5)
+    pt_analyser.confusion_matrix(conf=0, iou_thres=0, print_m=False, plot_m=True)
