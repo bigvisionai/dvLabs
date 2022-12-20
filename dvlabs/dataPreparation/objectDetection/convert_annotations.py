@@ -148,19 +148,3 @@ def to_coco(annotations, save_dir=""):
         with open(os.path.join(save_dir, anno_file), 'w') as f:
 
             f.write(json.dumps(anno_out, ensure_ascii=False, indent=4))
-
-
-if __name__ == "__main__":
-    from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
-
-    class_names = ["vest", "helmet"]
-
-    project_root = "..\..\.."
-
-    img_path = os.path.join(project_root, "examples", "images")
-    coco_json_path = os.path.join(project_root, "examples", "annotations", "coco_jsons", "data.json")
-    class_file_path = os.path.join(project_root, "examples", "class.names")
-
-    anno = Annotations(coco_json_path, img_path, class_file_path, "coco")
-    print(anno.annotations)
-    to_yolo(anno.annotations, os.path.join(project_root, "outputs"), ["Workers", "head", "helmet", "Workers", "person"])
