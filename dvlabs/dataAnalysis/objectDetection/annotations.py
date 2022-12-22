@@ -188,21 +188,3 @@ class Annotations:
 
     def __str__(self):
         return str(self.annotations)
-
-
-if __name__ == '__main__':
-    project_root = "..\..\.."
-    img_path = os.path.join(project_root, "examples", "images")
-    yolo_txt_path = os.path.join(project_root, "examples", "annotations", "yolo_txts")
-    pascal_voc_xml_path = os.path.join(project_root, "examples", "annotations", "pascal_voc_xmls")
-    coco_json_path = os.path.join(project_root, "examples", "annotations", "coco_jsons", "data.json")
-    class_file_path = os.path.join(project_root, "examples", "class.names")
-
-    anno = Annotations(yolo_txt_path, img_path, class_file_path, "yolo")
-    print(anno)
-
-    anno = Annotations(pascal_voc_xml_path, img_path, class_file_path, "pascal-voc")
-    print(anno)
-
-    anno = Annotations(coco_json_path, img_path, class_file_path, "coco")
-    print(anno)

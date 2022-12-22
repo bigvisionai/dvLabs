@@ -71,13 +71,3 @@ class Detections:
 
     def __str__(self):
         return str(self.detections)
-
-
-if __name__ == '__main__':
-    project_root = "..\..\.."
-    img_path = os.path.join(project_root, "examples", "images")
-    yolo_txt_path = os.path.join(project_root, "examples", "detections", "yolo_txts")
-    class_file_path = os.path.join(project_root, "examples", "class.names")
-
-    anno = Detections(yolo_txt_path, img_path, class_file_path, "yolo")
-    print(anno)

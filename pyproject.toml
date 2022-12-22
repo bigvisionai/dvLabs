@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61.0.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dvlabs"
+version = "0.0.0"
+authors = [
+    {name = "Varun", email = "varun.bal.work@gmail.com"},
+]
+description = "Useful utilities to carry out various tasks in the process of machine learning."
+readme = "README.md"
+dependencies = [
+    "opencv-contrib-python~=4.6.0.66",
+    "matplotlib~=3.5.3",
+    "seaborn~=0.12.1",
+]
+
+[tool.setuptools]
+packages = ["dvlabs"]
