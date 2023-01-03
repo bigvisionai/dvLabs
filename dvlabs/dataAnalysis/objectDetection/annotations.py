@@ -2,29 +2,27 @@ import os
 from xml.etree import ElementTree as ET
 import cv2
 import json
+from dvlabs.config import annotation_formats, image_extensions, yolo_bb_format, lib_annotation_format
+from dvlabs.utils import read_lines, read_yolo_annotation_txt, img_width_height_channels
 
 
 class Annotations:
     def __init__(self, annotation_path: str, imgs_dir: str, class_file: str, annotation_format: str):
 
+        assert annotation_format in annotation_formats.list(), f"{annotation_format} " \
+                                                               f"is not supported. Supported annotations " \
+                                                               f"formats are: {annotation_formats.list}"
+
         self.annotations = dict()
-        self.classes = []
 
-        self.classes = self.read_classes(class_file)
+        self.classes = read_lines(class_file)
 
-        if annotation_format == 'yolo':
+        if annotation_format == annotation_formats.YOLO:
             self.annotations = self.read_yolo(imgs_dir, annotation_path, self.classes)
-        elif annotation_format == 'pascal-voc':
+        elif annotation_format == annotation_formats.VOC:
             self.annotations = self.read_pascal_voc_xml(annotation_path)
-        elif annotation_format == 'coco':
+        elif annotation_format == annotation_formats.COCO:
             self.annotations = self.read_coco(annotation_path)
-        else:
-            #TODO throw exception
-            print("Exception: format not supported yet")
-
-    def read_classes(self, class_file):
-        with open(class_file, 'r') as f:
-            return f.read().split("\n")
 
     def read_yolo(self, img_dir="", annotations_dir="", class_names=[]):
 
@@ -34,37 +32,45 @@ class Annotations:
 
         for img_name in files:
 
-            if os.path.splitext(img_name)[-1] in ['.jpeg', '.jpg', '.png']:
+            if os.path.splitext(img_name)[-1] in image_extensions.list:
 
+                # Annotation filename corresponds to the image filename.
                 anon_file = os.path.splitext(img_name)[0] + '.txt'
 
-                img, (img_height, img_width, img_depth) = self.read_img(
-                    os.path.join(path, img_name)
-                )
+                img_path = os.path.join(path, img_name)
+                try:
+                    img_height, img_width, img_channels = img_width_height_channels(img_path)
+                except Exception as e:
+                    print(f"Dropping image: {img_path}.\n{e}")
+                    continue
 
                 read_objects = []
 
-                with open(os.path.join(annotations_dir, anon_file), 'r') as f:
+                annotation_file_path = os.path.join(annotations_dir, anon_file)
 
-                    for idx, line in enumerate(f):
-                        words = line.strip().split(" ")
+                try:
+                    bboxes = read_yolo_annotation_txt(annotation_file_path)
+                except Exception as e:
+                    print(f'Dropping image: {img_path}. \n{e}')
+                    
 
-                        read_objects.append(
-                            {
-                                'class': class_names[int(words[0])],
-                                'cx': float(words[1]),
-                                'cy': float(words[2]),
-                                'w': float(words[3]),
-                                'h': float(words[4]),
-                            }
-                        )
+                for bbox in bboxes:
+                    read_objects.append(
+                        {
+                            yolo_bb_format.CLASS: class_names[int(bbox[0])],
+                            yolo_bb_format.CX: float(bbox[1]),
+                            yolo_bb_format.CY: float(bbox[2]),
+                            yolo_bb_format.W: float(bbox[3]),
+                            yolo_bb_format.H: float(bbox[4]),
+                        }
+                    )
 
                 annotations[img_name] = {
-                    'width': img_width,
-                    'height': img_height,
-                    'depth': img_depth,
-                    'classes': self.classes,
-                    'objects': read_objects
+                    lib_annotation_format.IMG_WIDTH: img_width,
+                    lib_annotation_format.IMG_HEIGHT: img_height,
+                    lib_annotation_format.IMG_DEPTH: img_channels,
+                    lib_annotation_format.CLASS_NAMES: self.classes,
+                    lib_annotation_format.OBJECTS: read_objects
                 }
 
         return annotations
