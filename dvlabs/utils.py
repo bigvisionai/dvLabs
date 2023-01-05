@@ -1,6 +1,7 @@
 import numpy as np
 import cv2
 import math
+import json
 
 
 def denormalize_bbox(anno_obj, img_w, img_h):
@@ -158,6 +159,7 @@ def calc_precision_recall_f1(tp, fp, fn):
 
     return precision, recall, f1
 
+
 def combine_img_annos(anno1, anno2):
     combined_annos = anno1.copy()
     combined_pred_objs = []
@@ -171,3 +173,42 @@ def combine_img_annos(anno1, anno2):
     combined_annos['objects'] = combined_pred_objs
 
     return combined_annos
+
+
+def read_lines(file_path):
+    with open(file_path) as file:
+        lines = [line.rstrip().lstrip() for line in file if len(line.rstrip().lstrip()) != 0]
+    return lines
+
+
+def read_yolo_annotation_txt(file_path):
+    lines = read_lines(file_path)
+    bboxes = []
+    for line in lines:
+        entries = line.split(' ')
+        bboxes.append([entry for entry in entries if len(entry) != 0])
+    return bboxes
+
+
+def img_width_height_channels(img_path):
+    img = cv2.imread(img_path)
+    height, width, *_ = img.shape
+    img = img.reshape((height, width, -1))
+    _, _, channels = img.shape
+    return height, width, channels
+
+
+def dict_from_json(json_path):
+    with open(json_path, 'r') as json_file:
+        dic = json.load(json_file)
+    return dic
+
+def normalize_annotations(img_width, img_height, box_left, box_top, box_width, box_height):
+    dec_places = 2
+    center_x_ratio = round((box_left + int(box_width / 2)) / img_width, dec_places)
+    center_y_ratio = round((box_top + int(box_height / 2)) / img_height, dec_places)
+    width_ratio = round(box_width / img_width, dec_places)
+    height_ratio = round(box_height / img_height, dec_places)
+
+    return [center_x_ratio, center_y_ratio, width_ratio, height_ratio]
+
