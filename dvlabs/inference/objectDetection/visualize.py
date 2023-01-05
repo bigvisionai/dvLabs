@@ -1,5 +1,3 @@
-import os
-
 import cv2
 
 from dvlabs.utils import get_font_scale_n_thickness
@@ -75,11 +73,11 @@ def display(img, fps=24.99, lines=[], bboxes=[], pos="tl", offset=(None, None), 
 def get_line_sizes(lines, font, line_scale, thickness):
     """
     Calculate sizes of the text lines, maximum width of text and sum of heights of line texts
-    :param lines:
-    :param font:
-    :param line_scale:
-    :param thickness:
-    :return:
+    :param lines: list of text lines
+    :param font: text font
+    :param line_scale: text line font scale
+    :param thickness: text line font thickness
+    :return: tuple of list of text line sizes, maximum width of text and sum of heights of line texts
     """
     l_sizes = []
     max_l_width = 0
@@ -148,7 +146,7 @@ def get_offsets(pos: str, img_shape: tuple, rec_w: int, rec_h: int) -> (int, int
     :param rec_h: height if info box
     :return: a tuple of x and y offset
     """
-    ofst_x = ofst_y = round(max(img.shape) * 0.01)
+    ofst_x = ofst_y = round(max(img_shape) * 0.01)
 
     if pos == "tl":
         pass
@@ -161,25 +159,3 @@ def get_offsets(pos: str, img_shape: tuple, rec_w: int, rec_h: int) -> (int, int
         ofst_y = img_shape[0] - rec_h - ofst_y
 
     return ofst_x, ofst_y
-
-
-if __name__ == "__main__":
-
-    images_dir = os.path.abspath("D:\\BigVision\\library-work\\examples\\resources\\images")
-
-    image_path = os.path.join(images_dir, "000001.jpg")
-    # image_path = os.path.join(images_dir, "000001 - copy.jpg")
-    # image_path = os.path.join(images_dir, "000001 - Copy (2).jpg")
-
-    img = cv2.imread(image_path)
-    # img = cv2.resize(img, (250, 250))
-
-    # display(img)
-    # display(img, lines=["test line1", "line2", "line-3"], pos="br", bboxes=[[50, 50, 150, 150], [250, 250, 175, 175]])
-    display(img, lines=["test line1", "line2", "line-3"], pos="br", bboxes=[[50, 50, 150, 150], [250, 250, 175, 175]],
-            offset=(15, 15), txt_color=(0, 0, 0), bg_color=(0, 255, 255), bx_color=(0, 255, 0), font=cv2.FONT_HERSHEY_SIMPLEX)
-
-    cv2.imwrite("test.jpg", img)
-    cv2.imshow("test", img)
-
-    cv2.waitKey(0)
