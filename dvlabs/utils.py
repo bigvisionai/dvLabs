@@ -212,3 +212,13 @@ def normalize_annotations(img_width, img_height, box_left, box_top, box_width, b
 
     return [center_x_ratio, center_y_ratio, width_ratio, height_ratio]
 
+
+
+def get_font_scale_n_thickness(img_shape: tuple, scale_factor: float = 1) -> (float, int):
+
+    c = round(max(img_shape)) * .03 * 1 / 22
+
+    font_scale = scale_factor * c
+    thickness = max(round(c * 2), 1)
+
+    return font_scale, thickness
