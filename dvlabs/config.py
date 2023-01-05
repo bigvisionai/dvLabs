@@ -43,7 +43,7 @@ class LibAnnotationFormat:
     IMG_WIDTH = 'img_width'
     IMG_HEIGHT = 'img_height'
     IMG_DEPTH = 'img_depth'
-    CLASS_NAMES = 'class_names'
+    IMG_PATH = 'img_path'
     OBJECTS = 'objects'
 
 
