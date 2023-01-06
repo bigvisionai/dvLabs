@@ -14,11 +14,13 @@ gt_yolo_txt_path = os.path.join(project_root, "examples", "resources", "coco128"
 det_yolo_txt_path = os.path.join(project_root, "examples", "resources", "coco128", "gt_dets")
 class_file_path = os.path.join(project_root, "examples", "resources", "coco128", "class.names")
 
-gt_anno = Annotations(gt_yolo_txt_path, img_path, class_file_path, "yolo")
+gt_anno = Annotations()
+gt_anno.read_yolo(img_path, gt_yolo_txt_path, class_file_path)
 # print(gt_anno)
 
-pd_dets = Detections(det_yolo_txt_path, img_path, class_file_path, "yolo")
-# print(pd_dets)
+pd_dets = Annotations()
+pd_dets.read_yolo(img_path, det_yolo_txt_path, class_file_path)
+# print(gt_anno)
 
 pt_analyser = Analyse(gt_anno, pd_dets, img_path)
 # pt_analyser.grid_view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=.75,
