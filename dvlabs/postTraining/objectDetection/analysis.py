@@ -12,61 +12,15 @@ from dvlabs.utils import (denormalize_bbox, calc_iou, get_batches, get_vid_write
 
 
 class Analyse:
-    def __init__(self, gt_annos_obj, pred_dets_obj, img_dir):
+    def __init__(self, gt_annos_obj, pred_dets_obj):
 
         self.gt_annos_obj = gt_annos_obj
-        self.pred_annos_obj = pred_dets_obj
+        self.pred_dets_obj = pred_dets_obj
         self.gt_annos = gt_annos_obj.annotations
         self.pred_dets = pred_dets_obj.annotations
-        self.img_dir = img_dir
 
-    def grid_view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720),
-                  maintain_ratio=True, filter_classes=[], iou_thres=1):
-
-        image_ids = list(self.gt_annos.keys())
-
-        batch_size = grid_size[0] * grid_size[1]
-
-        resize_w, resize_h = round(resolution[0] / grid_size[0]), round(resolution[1] / grid_size[1])
-
-        vid_writer = None
-        if save_dir is not None:
-            vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output"), 1,
-                                        (resize_w*grid_size[0], resize_h*grid_size[1]))
-
-        batches = get_batches(image_ids, batch_size)
-
-        for batch in batches:
-            batch_imgs = []
-            for img_id in batch:
-                img_path = self.gt_annos[img_id][lib_annotation_format.IMG_PATH]
-                img = cv2.imread(img_path)
-
-                filtered_gt = self.filter_anno(self.gt_annos[img_id], self.pred_dets[img_id], filter_classes,
-                                               iou_thres)
-                filtered_pred = self.filter_anno(self.pred_dets[img_id], self.gt_annos[img_id], filter_classes,
-                                                 iou_thres)
-
-                self.display_gt(img, filtered_gt, (0, 255, 0))
-                self.display_anno(img, filtered_pred, (0, 255, 255))
-
-                batch_imgs.append(img)
-
-            grid = create_grid(batch_imgs, grid_size, (resize_h, resize_w), maintain_ratio)
-
-            if vid_writer is not None:
-                vid_writer.write(grid)
-            else:
-                cv2.imshow('grid', grid)
-                key = cv2.waitKey(0)
-                if key == 27 or key == ord('q'):
-                    break
-
-        if vid_writer is not None:
-            vid_writer.release()
-
-    def view_mistakes(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720),
-                  maintain_ratio=True, filter_classes=[], iou_thres=1):
+    def view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720), view_mistakes=False,
+             maintain_ratio=True, filter_classes=[], iou_thres=1):
 
         image_ids = list(self.gt_annos.keys())
 
@@ -91,8 +45,10 @@ class Analyse:
             filtered_pred = self.filter_anno(self.pred_dets[img_id], self.gt_annos[img_id], filter_classes,
                                              iou_thres)
 
-            if (len(filtered_gt[lib_annotation_format.OBJECTS]) is not 0) or \
-                    (len(filtered_pred[lib_annotation_format.OBJECTS]) is not 0):
+            if view_mistakes and ((len(filtered_gt[lib_annotation_format.OBJECTS]) is 0) and
+                                  (len(filtered_pred[lib_annotation_format.OBJECTS]) is 0)):
+                pass
+            else:
                 filtered_gt_annos[img_id] = filtered_gt
                 filtered_pred_annos[img_id] = filtered_pred
                 filtered_image_ids.append(img_id)
@@ -350,7 +306,7 @@ class Analyse:
                 temp = denormalize_bbox(obj, img_pred_annos[lib_annotation_format.IMG_WIDTH],
                                         img_pred_annos[lib_annotation_format.IMG_HEIGHT])
                 temp.append(float(obj[yolo_bb_format.CONF]))
-                temp.append(self.pred_annos_obj.class_names.index(obj[yolo_bb_format.CLASS]))
+                temp.append(self.pred_dets_obj.class_names.index(obj[yolo_bb_format.CLASS]))
                 detections.append(temp)
 
             img_gt_annos = self.gt_annos[img_id]
