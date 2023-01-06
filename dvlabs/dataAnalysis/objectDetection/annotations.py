@@ -1,4 +1,6 @@
 import os
+import json
+import hashlib
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
 from collections import defaultdict
@@ -12,11 +14,12 @@ class Annotations:
 
         self.annotations = dict()
         self.class_names = []
-        self.image_id = 0
 
-    def next_id(self):
-        self.image_id += 1
-        return self.image_id
+        # Track images using set. Do not use one image multiple
+
+    @staticmethod
+    def next_id(img_path):
+        return hash(img_path)
 
     def get_annotations(self):
         return self.annotations
@@ -97,7 +100,7 @@ class Annotations:
                         dic[yolo_bb_format.CONF] = float(bbox[5])
                     read_objects.append(dic)
 
-                self.annotations[self.next_id()] = {
+                self.annotations[self.next_id(img_path)] = {
                     lib_annotation_format.IMG_WIDTH: img_width,
                     lib_annotation_format.IMG_HEIGHT: img_height,
                     lib_annotation_format.IMG_DEPTH: img_channels,
@@ -111,7 +114,7 @@ class Annotations:
         os.makedirs(save_dir, exist_ok=True)
         self.write_class_names(class_names_path)
 
-        for img_id, values in self.annotations.items():
+        for key, values in self.annotations.items():
 
             img_path = values[lib_annotation_format.IMG_PATH]
             img_name = os.path.basename(img_path)
@@ -129,7 +132,7 @@ class Annotations:
                     f.write(f"{class_id} {obj[yolo_bb_format.CX]} {obj[yolo_bb_format.CY]} "
                             f"{obj[yolo_bb_format.W]} {obj[yolo_bb_format.H]}")
 
-    def read_pascal_voc_xml(self, img_dir, annotations_dir):
+    def read_pascal(self, img_dir, annotations_dir):
         print('Passing Pascal VOC data...')
 
         class_names = []
@@ -184,7 +187,7 @@ class Annotations:
 
                     read_objects.append(dic)
 
-                annot_id = self.next_id()
+                annot_id = self.next_id(img_path)
 
                 self.annotations[annot_id] = {
                     lib_annotation_format.IMG_WIDTH: img_width,
@@ -207,7 +210,7 @@ class Annotations:
 
         root = ET.Element('annotation')
 
-        for img_name, values in self.annotations.items():
+        for key, values in self.annotations.items():
 
             img_path = values[lib_annotation_format.IMG_PATH]
             img_name = os.path.basename(img_path)
@@ -221,28 +224,28 @@ class Annotations:
             ET.SubElement(source, 'database')
 
             size = ET.SubElement(root, 'size')
-            ET.SubElement(size, 'width').text = str(values['width'])
-            ET.SubElement(size, 'height').text = str(values['width'])
-            ET.SubElement(size, 'depth').text = str(values['depth'])
+            ET.SubElement(size, 'width').text = str(values[lib_annotation_format.IMG_WIDTH])
+            ET.SubElement(size, 'height').text = str(values[lib_annotation_format.IMG_HEIGHT])
+            ET.SubElement(size, 'depth').text = str(values[lib_annotation_format.IMG_DEPTH])
 
             ET.SubElement(root, 'segmented').text = 0
 
-            for obj in values['objects']:
-                object = ET.SubElement(root, 'object')
+            for obj in values[lib_annotation_format.OBJECTS]:
+                objects = ET.SubElement(root, 'object')
 
-                ET.SubElement(object, "name").text = obj['class']
+                ET.SubElement(objects, "name").text = obj['class']
 
-                ET.SubElement(object, 'pose').text = 'unspecified'
-                ET.SubElement(object, 'truncated').text = '0'
-                ET.SubElement(object, 'difficult').text = '0'
-                ET.SubElement(object, 'occluded').text = '0'
+                ET.SubElement(objects, 'pose').text = 'unspecified'
+                ET.SubElement(objects, 'truncated').text = '0'
+                ET.SubElement(objects, 'difficult').text = '0'
+                ET.SubElement(objects, 'occluded').text = '0'
 
-                bbox = ET.SubElement(object, 'bndbox')
+                bbox = ET.SubElement(objects, 'bndbox')
 
-                c_x = obj['cx'] * values['width']
-                c_y = obj['cy'] * values['height']
-                w = obj['w'] * values['width']
-                h = obj['h'] * values['height']
+                c_x = obj[yolo_bb_format.CX] * values[lib_annotation_format.IMG_WIDTH]
+                c_y = obj[yolo_bb_format.CY] * values[lib_annotation_format.IMG_HEIGHT]
+                w = obj[yolo_bb_format.W] * values[lib_annotation_format.IMG_WIDTH]
+                h = obj[yolo_bb_format.H] * values[lib_annotation_format.IMG_HEIGHT]
 
                 ET.SubElement(bbox, 'xmin').text = str(c_x - (w / 2))
                 ET.SubElement(bbox, 'xmax').text = str(c_x + (w / 2))
@@ -282,7 +285,7 @@ class Annotations:
             except Exception as e:
                 print(f"Dropping image: {img_path}.\n{e}")
                 continue
-            annot_id = self.next_id()
+            annot_id = self.next_id(img_path)
             img_id_map[image['id']] = annot_id
 
             self.annotations[annot_id] = {
@@ -326,6 +329,81 @@ class Annotations:
             self.annotations[annot_id][lib_annotation_format.OBJECTS].append(bbox)
         return
 
+    def to_coco(self, save_dir=None, json_filename=None):
+        anno_out = dict()
+        anno_out['info'] = {
+            "year": "",
+            "version": "",
+            "description": "",
+            "contributor": "",
+            "url": "",
+            "date_created": ""
+        }
+        anno_out['licenses'] = []
+        anno_out['categories'] = []
+        anno_out['images'] = []
+        anno_out['annotations'] = []
+
+        for key, values in self.annotations.items():
+
+            img_path = values[lib_annotation_format.IMG_PATH]
+            img_name = os.path.basename(img_path)
+
+            image_dict = dict(
+                id=key,
+                license=None,
+                file_name=img_name,
+                height=values[lib_annotation_format.IMG_HEIGHT],
+                width=values[lib_annotation_format.IMG_HEIGHT]
+            )
+            anno_out['images'].append(image_dict)
+
+            for obj_idx, obj in enumerate(values[lib_annotation_format.OBJECTS]):
+
+                class_id = self.class_names.index(obj[yolo_bb_format.CLASS])
+
+                c_x = obj[yolo_bb_format.CX] * values[lib_annotation_format.IMG_WIDTH]
+                c_y = obj[yolo_bb_format.CY] * values[lib_annotation_format.IMG_HEIGHT]
+                w = obj[yolo_bb_format.W] * values[lib_annotation_format.IMG_WIDTH]
+                h = obj[yolo_bb_format.H] * values[lib_annotation_format.IMG_HEIGHT]
+
+                x_min = c_x - (w / 2)
+                y_min = c_y - (w / 2)
+
+                object_dict = dict(
+                    id=obj_idx,
+                    image_id=key,
+                    category_id=class_id,
+                    bbox=[round(x_min), round(y_min), round(w), round(h)],
+                    area=None,
+                    segmentation=[],
+                    iscrowd=0
+                )
+                anno_out['annotations'].append(object_dict)
+
+        for idx, class_name in enumerate(self.class_names):
+            category_dict = dict(
+                id=idx,
+                name=class_name,
+                supercategory=None
+            )
+
+            anno_out['categories'].append(category_dict)
+
+        if save_dir is not None:
+            os.makedirs(save_dir, exist_ok=True)
+        else:
+            save_dir = os.curdir
+
+        if json_filename is None:
+            json_filename = 'annotations.json'
+
+        json_path = os.path.join(save_dir, json_filename)
+
+        with open(json_path, 'w') as f:
+
+            f.write(json.dumps(anno_out, ensure_ascii=False, indent=4))
+
     def __str__(self):
         return str(self.annotations)
 
@@ -339,16 +417,14 @@ if __name__ == '__main__':
     classnames_filepath = os.path.join(data_dir, 'class.names')
     annot = Annotations()
     annot.read_yolo(image_dir, yolo_annot, classnames_filepath)
-    annot.read_pascal_voc_xml(image_dir, voc_annot_dir)
+    annot.read_pascal(image_dir, voc_annot_dir)
     annot.read_coco(image_dir, coco_annot)
     annot.to_yolo('tmp', 'tmp/class.txt')
+    annot.to_pascal('tmp')
+    annot.to_coco('tmp')
     print(annot.get_annotations())
     print(annot.get_class_names())
     print(annot.get_image_count())
     print(annot.get_object_count())
 
-    # annot = Annotations(annotation_path=coco_annot, imgs_dir=image_dir, class_file=classnames_filepath,
-    #                     annotation_format=annotation_formats.COCO)
-    # print('coco')
-    # print(annot)
 
