@@ -28,5 +28,4 @@ pt_analyser.view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], io
                  view_mistakes=False, maintain_ratio=True)
 # pt_analyser.avg_iou_per_sample(save_dir=project_root)
 # pt_analyser.per_class_ap(0.90)
-# pt_analyser.evaluate_metric(0.5)
 # pt_analyser.confusion_matrix(conf=0, iou_thres=0, print_m=False, plot_m=True)

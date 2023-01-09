@@ -97,9 +97,14 @@ class Analyse:
 
         for idx, to_filter_obj in enumerate(annos_to_filter[lib_annotation_format.OBJECTS]):
 
-            if self.filter_class(to_filter_obj[yolo_bb_format.CLASS], filter_classes):
+            keep_class = True
+            if len(filter_classes) is not 0:
+                if to_filter_obj[yolo_bb_format.CLASS] not in filter_classes:
+                    keep_class = False
 
-                max_bbox_iou = self.get_max_iou(to_filter_obj, annos_to_filter, annos_to_compare)
+            if keep_class:
+
+                max_bbox_iou, _ = self.get_max_iou_with_true_label(to_filter_obj, annos_to_filter, annos_to_compare)
 
                 if not max_bbox_iou > iou_thres:
                     filtered_pred_objs.append(to_filter_obj)
@@ -151,12 +156,12 @@ class Analyse:
             samples = 0
 
             for idx, obj in enumerate(img_pred_annos[lib_annotation_format.OBJECTS]):
-                iou = self.get_max_iou(obj, img_pred_annos, img_gt_annos)
+                iou, _ = self.get_max_iou_with_true_label(obj, img_pred_annos, img_gt_annos)
                 sum_iou += iou
                 samples += 1
 
             for idx, obj in enumerate(img_gt_annos[lib_annotation_format.OBJECTS]):
-                iou = self.get_max_iou(obj, img_gt_annos, img_pred_annos)
+                iou, _ = self.get_max_iou_with_true_label(obj, img_gt_annos, img_pred_annos)
                 if iou == 0:
                     samples += 1
 
@@ -220,54 +225,6 @@ class Analyse:
 
         return tp, fp, p, r, f1, ap, unique_classes
 
-    def evaluate_metric(self, iou_thres):
-
-        image_ids = list(self.gt_annos.keys())
-
-        tp = fp = fn = 0
-
-        for img_id in image_ids:
-
-            img_tp, img_fp, img_fn, _, _, _ = self.evaluate_metric_img(img_id, iou_thres)
-
-            tp += img_tp
-            fp += img_fp
-            fn += img_fn
-
-        precision, recall, f1 = calc_precision_recall_f1(tp, fp, fn)
-
-        print(f"TPs:{tp}, FPs:{fp}, FNs:{fn}")
-        print(f"Precision:{precision}, Recall:{recall}, F1:{f1}")
-
-        return tp, fp, fn, precision, recall, f1
-
-    def evaluate_metric_img(self, img_id, iou_thres):
-        tp = fp = fn = 0
-
-        img_gt_annos = self.gt_annos[img_id]
-        img_pred_annos = self.pred_dets[img_id]
-
-        for idx, obj in enumerate(img_pred_annos[lib_annotation_format.OBJECTS]):
-            iou = self.get_max_iou(obj, img_pred_annos, img_gt_annos)
-
-            if iou >= iou_thres:
-                tp += 1
-            elif iou < iou_thres:
-                fp += 1
-
-        for idx, obj in enumerate(img_gt_annos[lib_annotation_format.OBJECTS]):
-            iou = self.get_max_iou(obj, img_gt_annos, img_pred_annos)
-
-            if iou == 0:
-                fn += 1
-
-        precision, recall, f1 = calc_precision_recall_f1(tp, fp, fn)
-
-        # print(f"TPs:{tp}, FPs:{fp}, FNs:{fn}")
-        # print(f"Precision:{precision}, Recall:{recall}, F1:{f1}")
-
-        return tp, fp, fn, precision, recall, f1
-
     def confusion_matrix(self, conf=0.25, iou_thres=0.45, print_m=False, plot_m=True):
         image_ids = list(self.gt_annos.keys())
 
@@ -303,30 +260,6 @@ class Analyse:
             cnfn_m.print()
         if plot_m:
             cnfn_m.plot()
-
-    def filter_class(self, cls_name, filter_classes):
-        include_anno = True
-        if len(filter_classes) is not 0:
-            if cls_name not in filter_classes:
-                include_anno = False
-        return include_anno
-
-    def get_max_iou(self, obj, annos1, annos2):
-
-        max_iou = 0
-
-        bbox1 = denormalize_bbox(obj, annos1[lib_annotation_format.IMG_WIDTH], annos1[lib_annotation_format.IMG_HEIGHT])
-
-        for gt_obj in annos2[lib_annotation_format.OBJECTS]:
-            if obj[yolo_bb_format.CLASS] == gt_obj[yolo_bb_format.CLASS]:
-                bbox2 = denormalize_bbox(gt_obj, annos2[lib_annotation_format.IMG_WIDTH],
-                                         annos2[lib_annotation_format.IMG_HEIGHT])
-
-                iou = calc_iou(bbox1, bbox2)
-                if iou > max_iou:
-                    max_iou = iou
-
-        return max_iou
 
     def get_max_iou_with_true_label(self, obj, annos1, annos2):
 
