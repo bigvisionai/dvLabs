@@ -6,7 +6,8 @@ import numpy as np
 
 from dvlabs.dataPreparation.objectDetection.convert_annotations import to_yolo
 from dvlabs.postTraining.objectDetection import metrics
-from dvlabs.config import lib_annotation_format, yolo_bb_format
+from dvlabs.config import lib_annotation_format, yolo_bb_format, label_positions
+from dvlabs.inference.objectDetection.visualize import display_anno
 from dvlabs.utils import (denormalize_bbox, calc_iou, get_batches, get_vid_writer, create_grid,
                           calc_precision_recall_f1, combine_img_annos)
 
@@ -22,16 +23,47 @@ class Analyse:
     def view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720), view_mistakes=False,
              maintain_ratio=True, filter_classes=[], iou_thres=1):
 
-        image_ids = list(self.gt_annos.keys())
-
-        batch_size = grid_size[0] * grid_size[1]
-
         resize_w, resize_h = round(resolution[0] / grid_size[0]), round(resolution[1] / grid_size[1])
 
+        # Initialize video writer
         vid_writer = None
         if save_dir is not None:
             vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output"), 1,
                                         (resize_w*grid_size[0], resize_h*grid_size[1]))
+
+        # Filter annotations
+        filtered_image_ids, filtered_gt_annos, filtered_pred_annos, combined_mistakes_anno \
+            = self.filter_anno(filter_classes, iou_thres, view_mistakes)
+
+        # Save mistakes annotations
+        if view_mistakes and (save_dir is not None):
+            self.save_mistakes_anno(combined_mistakes_anno, save_dir)
+
+        # Split filtered annotations into batches based on grid size
+        batch_size = grid_size[0] * grid_size[1]
+        batches = get_batches(filtered_image_ids, batch_size)
+
+        # Process batches
+        for batch in batches:
+            grid = self.process_batch(batch, filtered_gt_annos, filtered_pred_annos, grid_size, (resize_h, resize_w),
+                                      maintain_ratio)
+
+            # Write grid frame to video or show in window
+            if vid_writer is not None:
+                vid_writer.write(grid)
+            else:
+                cv2.imshow('grid', grid)
+                key = cv2.waitKey(0)
+                if key == 27 or key == ord('q'):
+                    break
+
+        # Release video writer
+        if vid_writer is not None:
+            vid_writer.release()
+
+    def filter_anno(self, filter_classes, iou_thres, view_mistakes):
+
+        image_ids = list(self.gt_annos.keys())
 
         filtered_gt_annos = {}
         filtered_pred_annos = {}
@@ -39,10 +71,10 @@ class Analyse:
         filtered_image_ids = []
 
         for img_id in image_ids:
-            filtered_gt = self.filter_anno(self.gt_annos[img_id], self.pred_dets[img_id], filter_classes,
+            filtered_gt = self.filter_img_anno(self.gt_annos[img_id], self.pred_dets[img_id], filter_classes,
                                            iou_thres)
 
-            filtered_pred = self.filter_anno(self.pred_dets[img_id], self.gt_annos[img_id], filter_classes,
+            filtered_pred = self.filter_img_anno(self.pred_dets[img_id], self.gt_annos[img_id], filter_classes,
                                              iou_thres)
 
             if view_mistakes and ((len(filtered_gt[lib_annotation_format.OBJECTS]) is 0) and
@@ -56,94 +88,9 @@ class Analyse:
                 # Combine mistakes annotations to one object
                 combined_mistakes_anno[img_id] = combine_img_annos(filtered_gt, filtered_pred)
 
-        # Save mistakes annotations
-        if save_dir is not None:
-            save_anno_dir = os.path.join(save_dir, "annotations")
-            if not os.path.exists(save_anno_dir):
-                os.makedirs(save_anno_dir)
+        return filtered_image_ids, filtered_gt_annos, filtered_pred_annos, combined_mistakes_anno
 
-            to_yolo(combined_mistakes_anno, save_anno_dir, self.gt_annos_obj.classes)
-
-        batches = get_batches(filtered_image_ids, batch_size)
-
-        for batch in batches:
-            batch_imgs = []
-            for img_id in batch:
-                img_path = self.gt_annos[img_id][lib_annotation_format.IMG_PATH]
-                img = cv2.imread(img_path)
-
-                filtered_gt = filtered_gt_annos[img_id]
-                filtered_pred = filtered_pred_annos[img_id]
-
-                self.display_gt(img, filtered_gt, (0, 255, 0))
-                self.display_anno(img, filtered_pred, (0, 255, 255))
-
-                batch_imgs.append(img)
-
-            grid = create_grid(batch_imgs, grid_size, (resize_h, resize_w), maintain_ratio)
-
-            if vid_writer is not None:
-                vid_writer.write(grid)
-            else:
-                cv2.imshow('grid', grid)
-                key = cv2.waitKey(0)
-                if key == 27 or key == ord('q'):
-                    break
-
-        if vid_writer is not None:
-            vid_writer.release()
-
-    def display_anno(self, img, img_anon, color=(0, 255, 0)):
-
-        for obj in img_anon[lib_annotation_format.OBJECTS]:
-            c_x = obj[yolo_bb_format.CX] * img_anon[lib_annotation_format.IMG_WIDTH]
-            c_y = obj[yolo_bb_format.CY] * img_anon[lib_annotation_format.IMG_HEIGHT]
-            w = int(obj[yolo_bb_format.W] * img_anon[lib_annotation_format.IMG_WIDTH])
-            h = int(obj[yolo_bb_format.H] * img_anon[lib_annotation_format.IMG_HEIGHT])
-            xmin = int(c_x - (w / 2))
-            ymin = int(c_y - (h / 2))
-
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            lbl_scale = 0.8
-            c = round(max(img.shape)) * .03 * 1 / 22
-            thickness = max(round(c * 2), 1)
-            lbl_scale = lbl_scale * c
-            ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(obj[yolo_bb_format.CLASS], font, lbl_scale, thickness)
-            lbl_box = [xmin, ymin-lbl_h-lbl_bline, lbl_w, lbl_h+lbl_bline]
-
-            bbox = [xmin, ymin, w, h]
-
-            cv2.rectangle(img, lbl_box, color, -1)
-            cv2.rectangle(img, bbox, color, thickness)
-            cv2.putText(img, obj[yolo_bb_format.CLASS], [xmin, ymin-lbl_bline], font, lbl_scale, thickness)
-
-    def display_gt(self, img, img_anon, color=(0, 255, 0)):
-
-        for obj in img_anon[lib_annotation_format.OBJECTS]:
-            c_x = obj[yolo_bb_format.CX] * img_anon[lib_annotation_format.IMG_WIDTH]
-            c_y = obj[yolo_bb_format.CY] * img_anon[lib_annotation_format.IMG_HEIGHT]
-            w = int(obj[yolo_bb_format.W] * img_anon[lib_annotation_format.IMG_WIDTH])
-            h = int(obj[yolo_bb_format.H] * img_anon[lib_annotation_format.IMG_HEIGHT])
-            xmin = int(c_x - (w / 2))
-            ymin = int(c_y - (h / 2))
-            xmax = int(c_x + (w / 2))
-            ymax = int(c_y + (h / 2))
-
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            lbl_scale = 0.8
-            c = round(max(img.shape)) * .03 * 1 / 22
-            thickness = max(round(c * 2), 1)
-            lbl_scale = lbl_scale * c
-            ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(obj[yolo_bb_format.CLASS], font, lbl_scale, thickness)
-            lbl_box = [xmax-lbl_w, ymax, lbl_w, lbl_h+lbl_bline]
-
-            bbox = [xmin, ymin, w, h]
-
-            cv2.rectangle(img, lbl_box, color, -1)
-            cv2.rectangle(img, bbox, color, thickness)
-            cv2.putText(img, obj[yolo_bb_format.CLASS], [xmax-lbl_w, ymax+lbl_h], font, lbl_scale, thickness)
-
-    def filter_anno(self, annos_to_filter, annos_to_compare, filter_classes, iou_thres):
+    def filter_img_anno(self, annos_to_filter, annos_to_compare, filter_classes, iou_thres):
 
         filtered_annos = annos_to_filter.copy()
         filtered_pred_objs = []
@@ -160,6 +107,35 @@ class Analyse:
         filtered_annos[lib_annotation_format.OBJECTS] = filtered_pred_objs
 
         return filtered_annos
+
+    def save_mistakes_anno(self, combined_mistakes_anno, save_dir):
+        save_anno_dir = os.path.join(save_dir, "mistakes")
+        if not os.path.exists(save_anno_dir):
+            os.makedirs(save_anno_dir)
+        to_yolo(combined_mistakes_anno, save_anno_dir, self.gt_annos_obj.classes)
+
+    def process_batch(self, batch, filtered_gt_annos, filtered_pred_annos, grid_size, resize_dim, maintain_ratio):
+        batch_imgs = []
+        for img_id in batch:
+            # Read image
+            img_path = self.gt_annos[img_id][lib_annotation_format.IMG_PATH]
+            img = cv2.imread(img_path)
+
+            # Get image annotations
+            filtered_gt = filtered_gt_annos[img_id]
+            filtered_pred = filtered_pred_annos[img_id]
+
+            # Display annotations on image
+            display_anno(img, filtered_gt, (0, 255, 0), lbl_pos=label_positions.BR)
+            display_anno(img, filtered_pred, (0, 255, 255), lbl_pos=label_positions.TL)
+
+            # Add to current batch image
+            batch_imgs.append(img)
+
+        # create grid of current batch
+        grid = create_grid(batch_imgs, grid_size, resize_dim, maintain_ratio)
+
+        return grid
 
     def avg_iou_per_sample(self, save_dir=None):
 

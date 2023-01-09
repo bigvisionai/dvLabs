@@ -1,6 +1,7 @@
 import cv2
 
-from dvlabs.utils import get_font_scale_n_thickness
+from dvlabs.utils import get_font_scale_n_thickness, denormalize_bbox
+from dvlabs.config import lib_annotation_format, yolo_bb_format, label_positions
 
 
 def display(img, fps=24.99, lines=[], bboxes=[], pos="tl", offset=(None, None), txt_color=(0, 0, 0),
@@ -159,3 +160,41 @@ def get_offsets(pos: str, img_shape: tuple, rec_w: int, rec_h: int) -> (int, int
         ofst_y = img_shape[0] - rec_h - ofst_y
 
     return ofst_x, ofst_y
+
+
+def display_anno(img, img_anon, color=(0, 255, 0), font=cv2.FONT_HERSHEY_SIMPLEX, lbl_pos=label_positions.TL):
+
+    for obj in img_anon[lib_annotation_format.OBJECTS]:
+
+        bbox = denormalize_bbox(obj, img_anon[lib_annotation_format.IMG_WIDTH],
+                                img_anon[lib_annotation_format.IMG_HEIGHT])
+
+        lbl_scale, thickness = get_font_scale_n_thickness(img.shape, scale_factor=0.8)
+
+        lbl_box, text_ccord = get_lbl_coord(bbox=bbox, lbl_text=obj[yolo_bb_format.CLASS], font=font,
+                                            lbl_scale=lbl_scale, thickness=thickness, lbl_pos=lbl_pos)
+
+        cv2.rectangle(img, bbox[:2], bbox[2:4], color, thickness)
+
+        cv2.rectangle(img, lbl_box, color, -1)
+        cv2.putText(img, obj[yolo_bb_format.CLASS], text_ccord, font, lbl_scale, thickness)
+
+
+def get_lbl_coord(bbox, lbl_text, font, lbl_scale, thickness, lbl_pos):
+
+    ((lbl_w, lbl_h), lbl_bline) = cv2.getTextSize(lbl_text, font, lbl_scale, thickness)
+
+    if lbl_pos == label_positions.TL:
+        lbl_box = [bbox[0], bbox[1]-lbl_h-lbl_bline, lbl_w, lbl_h+lbl_bline]
+        text_coord = [bbox[0], bbox[1]-lbl_bline]
+    elif lbl_pos == label_positions.TR:
+        lbl_box = [bbox[2]-lbl_w, bbox[1]-lbl_h-lbl_bline, lbl_w, lbl_h+lbl_bline]
+        text_coord = [bbox[2]-lbl_w, bbox[1]-lbl_bline]
+    elif lbl_pos == label_positions.BL:
+        lbl_box = [bbox[0], bbox[3], lbl_w, lbl_h+lbl_bline]
+        text_coord = [bbox[0], bbox[3]+lbl_h]
+    elif lbl_pos == label_positions.BR:
+        lbl_box = [bbox[2]-lbl_w, bbox[3], lbl_w, lbl_h+lbl_bline]
+        text_coord = [bbox[2]-lbl_w, bbox[3]+lbl_h]
+
+    return lbl_box, text_coord
