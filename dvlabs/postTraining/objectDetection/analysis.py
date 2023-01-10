@@ -8,26 +8,40 @@ from dvlabs.dataPreparation.objectDetection.convert_annotations import to_yolo
 from dvlabs.postTraining.objectDetection import metrics
 from dvlabs.config import lib_annotation_format, yolo_bb_format, label_positions
 from dvlabs.inference.objectDetection.visualize import display_anno
-from dvlabs.utils import (denormalize_bbox, calc_iou, get_batches, get_vid_writer, create_grid,
-                          calc_precision_recall_f1, combine_img_annos)
+from dvlabs.utils import (denormalize_bbox, get_batches, get_vid_writer, create_grid, combine_img_annos,
+                          check_and_create_dir, get_max_iou_with_true_label)
 
 
 class Analyse:
     def __init__(self, gt_annos_obj, pred_dets_obj):
+
+        assert gt_annos_obj.class_names == pred_dets_obj.class_names, \
+            "Classes cannot be different in ground truth and detections."
 
         self.gt_annos_obj = gt_annos_obj
         self.pred_dets_obj = pred_dets_obj
         self.gt_annos = gt_annos_obj.annotations
         self.pred_dets = pred_dets_obj.annotations
 
+        self.class_names = gt_annos_obj.class_names
+
     def view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720), view_mistakes=False,
              maintain_ratio=True, filter_classes=[], iou_thres=1):
+
+        assert grid_size[0] >= 1 and grid_size[1] >= 1, "Grid dimensions cannot be less than 1."
+        assert resolution[0] >= 1 and resolution[1] >= 1, "Resolution cannot be less than 1."
+        assert (iou_thres >= 0) and (iou_thres <= 1), "IOU threshold must be between 0-1."
+        for f_cls in filter_classes:
+            assert f_cls in self.class_names, "Filter class name not present in dataset."
 
         resize_w, resize_h = round(resolution[0] / grid_size[0]), round(resolution[1] / grid_size[1])
 
         # Initialize video writer
         vid_writer = None
         if save_dir is not None:
+            # Create directory if not present
+            check_and_create_dir(save_dir)
+
             vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output"), 1,
                                         (resize_w*grid_size[0], resize_h*grid_size[1]))
 
@@ -45,8 +59,8 @@ class Analyse:
 
         # Process batches
         for batch in batches:
-            grid = self.process_batch(batch, filtered_gt_annos, filtered_pred_annos, grid_size, (resize_h, resize_w),
-                                      maintain_ratio)
+            grid = self.process_grid_batch(batch, filtered_gt_annos, filtered_pred_annos, grid_size,
+                                           (resize_h, resize_w), maintain_ratio)
 
             # Write grid frame to video or show in window
             if vid_writer is not None:
@@ -72,10 +86,10 @@ class Analyse:
 
         for img_id in image_ids:
             filtered_gt = self.filter_img_anno(self.gt_annos[img_id], self.pred_dets[img_id], filter_classes,
-                                           iou_thres)
+                                               iou_thres)
 
             filtered_pred = self.filter_img_anno(self.pred_dets[img_id], self.gt_annos[img_id], filter_classes,
-                                             iou_thres)
+                                                 iou_thres)
 
             if view_mistakes and ((len(filtered_gt[lib_annotation_format.OBJECTS]) is 0) and
                                   (len(filtered_pred[lib_annotation_format.OBJECTS]) is 0)):
@@ -85,8 +99,9 @@ class Analyse:
                 filtered_pred_annos[img_id] = filtered_pred
                 filtered_image_ids.append(img_id)
 
-                # Combine mistakes annotations to one object
-                combined_mistakes_anno[img_id] = combine_img_annos(filtered_gt, filtered_pred)
+                if view_mistakes:
+                    # Combine mistakes annotations to one object
+                    combined_mistakes_anno[img_id] = combine_img_annos(filtered_gt, filtered_pred)
 
         return filtered_image_ids, filtered_gt_annos, filtered_pred_annos, combined_mistakes_anno
 
@@ -97,14 +112,9 @@ class Analyse:
 
         for idx, to_filter_obj in enumerate(annos_to_filter[lib_annotation_format.OBJECTS]):
 
-            keep_class = True
-            if len(filter_classes) is not 0:
-                if to_filter_obj[yolo_bb_format.CLASS] not in filter_classes:
-                    keep_class = False
-
-            if keep_class:
-
-                max_bbox_iou, _ = self.get_max_iou_with_true_label(to_filter_obj, annos_to_filter, annos_to_compare)
+            if (len(filter_classes) is 0) or ((len(filter_classes) is not 0) and
+                                              (to_filter_obj[yolo_bb_format.CLASS] in filter_classes)):
+                max_bbox_iou, _ = get_max_iou_with_true_label(to_filter_obj, annos_to_filter, annos_to_compare)
 
                 if not max_bbox_iou > iou_thres:
                     filtered_pred_objs.append(to_filter_obj)
@@ -119,7 +129,7 @@ class Analyse:
             os.makedirs(save_anno_dir)
         to_yolo(combined_mistakes_anno, save_anno_dir, self.gt_annos_obj.classes)
 
-    def process_batch(self, batch, filtered_gt_annos, filtered_pred_annos, grid_size, resize_dim, maintain_ratio):
+    def process_grid_batch(self, batch, filtered_gt_annos, filtered_pred_annos, grid_size, resize_dim, maintain_ratio):
         batch_imgs = []
         for img_id in batch:
             # Read image
@@ -144,6 +154,10 @@ class Analyse:
 
     def avg_iou_per_sample(self, save_dir=None):
 
+        if save_dir is not None:
+            # Create directory if not present
+            check_and_create_dir(save_dir)
+
         avg_IOUs = []
 
         image_ids = list(self.gt_annos.keys())
@@ -156,12 +170,12 @@ class Analyse:
             samples = 0
 
             for idx, obj in enumerate(img_pred_annos[lib_annotation_format.OBJECTS]):
-                iou, _ = self.get_max_iou_with_true_label(obj, img_pred_annos, img_gt_annos)
+                iou, _ = get_max_iou_with_true_label(obj, img_pred_annos, img_gt_annos)
                 sum_iou += iou
                 samples += 1
 
             for idx, obj in enumerate(img_gt_annos[lib_annotation_format.OBJECTS]):
-                iou, _ = self.get_max_iou_with_true_label(obj, img_gt_annos, img_pred_annos)
+                iou, _ = get_max_iou_with_true_label(obj, img_gt_annos, img_pred_annos)
                 if iou == 0:
                     samples += 1
 
@@ -184,7 +198,13 @@ class Analyse:
         plt.ylabel('Average IOU')
         plt.show()
 
-    def per_class_ap(self, iou_thres):
+    def per_class_ap(self, iou_thres, save_dir=".", print_ap=False, plot_ap=True):
+
+        if save_dir is not None:
+            # Create directory if not present
+            check_and_create_dir(save_dir)
+
+        assert (iou_thres >= 0) and (iou_thres <= 1), "IOU threshold must be between 0-1."
 
         image_ids = list(self.gt_annos.keys())
 
@@ -199,7 +219,7 @@ class Analyse:
             img_pred_annos = self.pred_dets[img_id]
 
             for idx, obj in enumerate(img_pred_annos[lib_annotation_format.OBJECTS]):
-                iou, target_lbl = self.get_max_iou_with_true_label(obj, img_pred_annos, img_gt_annos)
+                iou, target_lbl = get_max_iou_with_true_label(obj, img_pred_annos, img_gt_annos)
 
                 if iou >= iou_thres:
                     tp.append([True])
@@ -217,15 +237,24 @@ class Analyse:
         pred_cls = np.array(pred_cls)
         target_cls = np.array(target_cls)
 
-        tp, fp, p, r, f1, ap, unique_classes = metrics.ap_per_class(tp, conf, pred_cls, target_cls, plot=True,
-                                                                    save_dir='.', names=self.gt_annos_obj.class_names,
+        tp, fp, p, r, f1, ap, unique_classes = metrics.ap_per_class(tp, conf, pred_cls, target_cls, plot=plot_ap,
+                                                                    save_dir=save_dir, names=self.class_names,
                                                                     eps=1e-16, prefix="")
 
-        # print(f"tp:{tp}, fp:{fp}, p:{p}, r:{r}, f1:{f1}, ap:{ap}, unique_classes:{unique_classes}")
+        if print_ap:
+            print(f"tp:{tp}, fp:{fp}, p:{p}, r:{r}, f1:{f1}, ap:{ap}, unique_classes:{unique_classes}")
 
         return tp, fp, p, r, f1, ap, unique_classes
 
-    def confusion_matrix(self, conf=0.25, iou_thres=0.45, print_m=False, plot_m=True):
+    def confusion_matrix(self, conf=0.25, iou_thres=0.45, normalize=True, save_dir=".", print_m=False, plot_m=True):
+
+        if save_dir is not None:
+            # Create directory if not present
+            check_and_create_dir(save_dir)
+
+        assert (conf >= 0) and (conf <= 1), "Confidence must be between 0-1."
+        assert (iou_thres >= 0) and (iou_thres <= 1), "IOU threshold must be between 0-1."
+
         image_ids = list(self.gt_annos.keys())
 
         detections = []
@@ -239,13 +268,13 @@ class Analyse:
                 temp = denormalize_bbox(obj, img_pred_annos[lib_annotation_format.IMG_WIDTH],
                                         img_pred_annos[lib_annotation_format.IMG_HEIGHT])
                 temp.append(float(obj[yolo_bb_format.CONF]))
-                temp.append(self.pred_dets_obj.class_names.index(obj[yolo_bb_format.CLASS]))
+                temp.append(self.class_names.index(obj[yolo_bb_format.CLASS]))
                 detections.append(temp)
 
             img_gt_annos = self.gt_annos[img_id]
 
             for idx, obj in enumerate(img_gt_annos[lib_annotation_format.OBJECTS]):
-                temp = [self.gt_annos_obj.class_names.index(obj[yolo_bb_format.CLASS])]
+                temp = [self.class_names.index(obj[yolo_bb_format.CLASS])]
                 for x in denormalize_bbox(obj, img_gt_annos[lib_annotation_format.IMG_WIDTH],
                                           img_gt_annos[lib_annotation_format.IMG_HEIGHT]):
                     temp.append(x)
@@ -254,27 +283,9 @@ class Analyse:
         detections = np.array(detections)
         labels = np.array(labels)
 
-        cnfn_m = metrics.ConfusionMatrix(len(self.gt_annos_obj.class_names), conf, iou_thres)
+        cnfn_m = metrics.ConfusionMatrix(len(self.class_names), conf, iou_thres)
         cnfn_m.process_batch(detections, labels)
         if print_m:
             cnfn_m.print()
         if plot_m:
-            cnfn_m.plot()
-
-    def get_max_iou_with_true_label(self, obj, annos1, annos2):
-
-        max_iou = 0
-        true_lbl = None
-
-        bbox1 = denormalize_bbox(obj, annos1[lib_annotation_format.IMG_WIDTH], annos1[lib_annotation_format.IMG_HEIGHT])
-
-        for gt_obj in annos2[lib_annotation_format.OBJECTS]:
-            bbox2 = denormalize_bbox(gt_obj, annos2[lib_annotation_format.IMG_WIDTH],
-                                     annos2[lib_annotation_format.IMG_HEIGHT])
-
-            iou = calc_iou(bbox1, bbox2)
-            if iou > max_iou:
-                max_iou = iou
-                true_lbl = gt_obj[yolo_bb_format.CLASS]
-
-        return max_iou, true_lbl
+            cnfn_m.plot(normalize=normalize, save_dir=save_dir, names=self.class_names)

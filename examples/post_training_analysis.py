@@ -26,6 +26,9 @@ pt_analyser = Analyse(gt_anno, pd_dets)
 
 pt_analyser.view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=1,
                  view_mistakes=False, maintain_ratio=True)
-# pt_analyser.avg_iou_per_sample(save_dir=project_root)
-# pt_analyser.per_class_ap(0.90)
-# pt_analyser.confusion_matrix(conf=0, iou_thres=0, print_m=False, plot_m=True)
+
+pt_analyser.avg_iou_per_sample(save_dir=project_root)
+
+pt_analyser.per_class_ap(0.90, save_dir=project_root, print_ap=False, plot_ap=True)
+
+pt_analyser.confusion_matrix(conf=0, iou_thres=0, normalize=True, save_dir=project_root, print_m=False, plot_m=True)
