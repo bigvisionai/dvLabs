@@ -1,6 +1,5 @@
 import os
 import json
-import hashlib
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
 from collections import defaultdict
@@ -406,25 +405,5 @@ class Annotations:
 
     def __str__(self):
         return str(self.annotations)
-
-
-if __name__ == '__main__':
-    data_dir = 'C:\\Users\\Prakash\\pc\\work\\dv_labs\\examples\\resources'
-    yolo_annot = os.path.join(data_dir, 'annotations', 'yolo_txts')
-    voc_annot_dir = os.path.join(data_dir, 'annotations', 'pascal_voc_xmls')
-    coco_annot = os.path.join(data_dir, 'annotations', 'coco_jsons', 'data.json')
-    image_dir = os.path.join(data_dir, 'images')
-    classnames_filepath = os.path.join(data_dir, 'class.names')
-    annot = Annotations()
-    annot.read_yolo(image_dir, yolo_annot, classnames_filepath)
-    annot.read_pascal(image_dir, voc_annot_dir)
-    annot.read_coco(image_dir, coco_annot)
-    annot.to_yolo('tmp', 'tmp/class.txt')
-    annot.to_pascal('tmp')
-    annot.to_coco('tmp')
-    print(annot.get_annotations())
-    print(annot.get_class_names())
-    print(annot.get_image_count())
-    print(annot.get_object_count())
 
 

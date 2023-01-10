@@ -1,15 +1,26 @@
-import os
 from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
-from dvlabs.dataPreparation.objectDetection.convert_annotations import to_yolo
-
-class_names = ["vest", "helmet"]
+import os
 
 project_root = ".."
-img_path = os.path.join(project_root, "examples", "resources", "images")
+data_dir = os.path.join(project_root, 'examples', 'resources')
 
-coco_json_path = os.path.join(project_root, "examples", "resources", "annotations", "coco_jsons", "data.json")
-class_file_path = os.path.join(project_root, "examples", "resources", "class.names")
+image_dir = os.path.join(data_dir, 'images')
+classnames_filepath = os.path.join(data_dir, 'class.names')
+yolo_annot = os.path.join(data_dir, 'annotations', 'yolo_txts')
+voc_annot_dir = os.path.join(data_dir, 'annotations', 'pascal_voc_xmls')
+coco_annot = os.path.join(data_dir, 'annotations', 'coco_jsons', 'data.json')
 
-anno = Annotations(coco_json_path, img_path, class_file_path, "coco")
-print(anno.annotations)
-to_yolo(anno.annotations, os.path.join(project_root, "outputs"), ["Workers", "head", "helmet", "Workers", "person"])
+annot = Annotations()
+
+annot.read_yolo(image_dir, yolo_annot, classnames_filepath)
+annot.read_pascal(image_dir, voc_annot_dir)
+annot.read_coco(image_dir, coco_annot)
+
+annot.to_yolo(os.path.join(project_root, 'outputs'), os.path.join(project_root, 'outputs', 'class.names'))
+annot.to_pascal(os.path.join(project_root, 'outputs'))
+annot.to_coco(os.path.join(project_root, 'outputs'))
+
+print(annot.get_annotations())
+print(annot.get_class_names())
+print(annot.get_image_count())
+print(annot.get_object_count())
