@@ -2,11 +2,15 @@ import os
 from xml.etree import ElementTree as ET
 from xml.dom import minidom
 import json
+from dvlabs.config import lib_annotation_format
 
 
 def to_yolo(annotations, save_dir="", class_names=[]):
 
-    for img_name, values in annotations.items():
+    for img_id, values in annotations.items():
+
+        img_path = annotations[img_id][lib_annotation_format.IMG_PATH]
+        img_name = os.path.basename(img_path)
 
         anno_file = os.path.splitext(img_name)[0] + ".txt"
 
