@@ -1,5 +1,4 @@
 from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
-from dvlabs.postTraining.objectDetection.detections import Detections
 from dvlabs.postTraining.objectDetection.analysis import Analyse
 import os
 
