@@ -1,7 +1,11 @@
-import numpy as np
-import cv2
+import os
 import math
 import json
+
+import numpy as np
+import cv2
+
+from dvlabs.config import lib_annotation_format, yolo_bb_format
 
 
 def denormalize_bbox(anno_obj, img_w, img_h):
@@ -203,6 +207,7 @@ def dict_from_json(json_path):
         dic = json.load(json_file)
     return dic
 
+
 def normalize_annotations(img_width, img_height, box_left, box_top, box_width, box_height):
     dec_places = 2
     center_x_ratio = round((box_left + int(box_width / 2)) / img_width, dec_places)
@@ -212,3 +217,37 @@ def normalize_annotations(img_width, img_height, box_left, box_top, box_width, b
 
     return [center_x_ratio, center_y_ratio, width_ratio, height_ratio]
 
+
+def get_font_scale_n_thickness(img_shape: tuple, scale_factor: float = 1) -> (float, int):
+
+    c = round(max(img_shape)) * .03 * 1 / 22
+
+    font_scale = scale_factor * c
+    thickness = max(round(c * 2), 1)
+
+    return font_scale, thickness
+
+
+def check_and_create_dir(dir_path):
+    """Create directory if not present"""
+    if not os.path.exists(dir_path):
+        os.makedirs(dir_path)
+
+
+def get_max_iou_with_true_label(obj, annos1, annos2):
+
+    max_iou = 0
+    true_lbl = None
+
+    bbox1 = denormalize_bbox(obj, annos1[lib_annotation_format.IMG_WIDTH], annos1[lib_annotation_format.IMG_HEIGHT])
+
+    for gt_obj in annos2[lib_annotation_format.OBJECTS]:
+        bbox2 = denormalize_bbox(gt_obj, annos2[lib_annotation_format.IMG_WIDTH],
+                                 annos2[lib_annotation_format.IMG_HEIGHT])
+
+        iou = calc_iou(bbox1, bbox2)
+        if iou > max_iou:
+            max_iou = iou
+            true_lbl = gt_obj[yolo_bb_format.CLASS]
+
+    return max_iou, true_lbl

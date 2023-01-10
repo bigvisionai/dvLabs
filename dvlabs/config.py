@@ -50,4 +50,11 @@ class LibAnnotationFormat:
 lib_annotation_format = LibAnnotationFormat()
 
 
+class LabelPositions:
+    TL = 'tl'
+    TR = 'tr'
+    BL = 'bl'
+    BR = 'br'
 
+
+label_positions = LabelPositions()

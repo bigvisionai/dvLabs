@@ -2,18 +2,21 @@ from dvlabs.dataAnalysis.objectDetection.annotations import Annotations
 import os
 
 project_root = ".."
+data_dir = os.path.join(project_root, 'examples', 'resources')
 
-img_path = os.path.join(project_root, "examples", "resources", "images")
-class_file_path = os.path.join(project_root, "examples", "resources", "class.names")
+image_dir = os.path.join(data_dir, 'images')
+classnames_filepath = os.path.join(data_dir, 'class.names')
+yolo_annot = os.path.join(data_dir, 'annotations', 'yolo_txts')
+voc_annot_dir = os.path.join(data_dir, 'annotations', 'pascal_voc_xmls')
+coco_annot = os.path.join(data_dir, 'annotations', 'coco_jsons', 'data.json')
 
-yolo_txt_path = os.path.join(project_root, "examples", "resources", "annotations", "yolo_txts")
-anno = Annotations(yolo_txt_path, img_path, class_file_path, "yolo")
-print(anno)
+annot = Annotations()
 
-pascal_voc_xml_path = os.path.join(project_root, "examples", "resources", "annotations", "pascal_voc_xmls")
-anno = Annotations(pascal_voc_xml_path, img_path, class_file_path, "pascal-voc")
-print(anno)
+annot.read_yolo(image_dir, yolo_annot, classnames_filepath)
+annot.read_pascal(image_dir, voc_annot_dir)
+annot.read_coco(image_dir, coco_annot)
 
-coco_json_path = os.path.join(project_root, "examples", "resources", "annotations", "coco_jsons", "data.json")
-anno = Annotations(coco_json_path, img_path, class_file_path, "coco")
-print(anno)
+print(annot.get_annotations())
+print(annot.get_class_names())
+print(annot.get_image_count())
+print(annot.get_object_count())
