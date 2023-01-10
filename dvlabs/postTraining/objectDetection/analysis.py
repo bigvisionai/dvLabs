@@ -125,8 +125,8 @@ class Analyse:
 
     def save_mistakes_anno(self, combined_mistakes_anno, save_dir):
         save_anno_dir = os.path.join(save_dir, "mistakes")
-        if not os.path.exists(save_anno_dir):
-            os.makedirs(save_anno_dir)
+        check_and_create_dir(save_anno_dir)
+
         to_yolo(combined_mistakes_anno, save_anno_dir, self.gt_annos_obj.classes)
 
     def process_grid_batch(self, batch, filtered_gt_annos, filtered_pred_annos, grid_size, resize_dim, maintain_ratio):
