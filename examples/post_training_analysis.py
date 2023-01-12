@@ -13,6 +13,11 @@ gt_yolo_txt_path = os.path.join(project_root, "examples", "resources", "coco128"
 det_yolo_txt_path = os.path.join(project_root, "examples", "resources", "coco128", "gt_dets")
 class_file_path = os.path.join(project_root, "examples", "resources", "coco128", "class.names")
 
+# img_path = os.path.join(project_root, "examples", "resources", "pothole_dataset", "train", "images")
+# gt_yolo_txt_path = os.path.join(project_root, "examples", "resources", "pothole_dataset", "train", "gt_labels")
+# det_yolo_txt_path = os.path.join(project_root, "examples", "resources", "pothole_dataset", "train", "det_labels")
+# class_file_path = os.path.join(project_root, "examples", "resources", "pothole_dataset", "classes.txt")
+
 gt_anno = Annotations()
 gt_anno.read_yolo(img_path, gt_yolo_txt_path, class_file_path)
 # print(gt_anno)
@@ -23,8 +28,8 @@ pd_dets.read_yolo(img_path, det_yolo_txt_path, class_file_path)
 
 pt_analyser = Analyse(gt_anno, pd_dets)
 
-pt_analyser.view(grid_size=(3, 3), resolution=(1280, 720), filter_classes=[], iou_thres=1,
-                 view_mistakes=False, maintain_ratio=True)
+pt_analyser.view(grid_size=(1, 1), resolution=(1280, 720), view_mistakes=False, maintain_ratio=True, filter_classes=[],
+                 iou_thres=1, show_labels=True)
 
 pt_analyser.avg_iou_per_sample(save_dir=project_root)
 

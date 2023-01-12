@@ -162,7 +162,8 @@ def get_offsets(pos: str, img_shape: tuple, rec_w: int, rec_h: int) -> (int, int
     return ofst_x, ofst_y
 
 
-def display_anno(img, img_anon, color=(0, 255, 0), font=cv2.FONT_HERSHEY_SIMPLEX, lbl_pos=label_positions.TL):
+def display_anno(img, img_anon, color=(0, 255, 0), font=cv2.FONT_HERSHEY_SIMPLEX, lbl_pos=label_positions.TL,
+                 show_labels=True):
 
     for obj in img_anon[lib_annotation_format.OBJECTS]:
 
@@ -171,14 +172,16 @@ def display_anno(img, img_anon, color=(0, 255, 0), font=cv2.FONT_HERSHEY_SIMPLEX
 
         lbl_scale, thickness = get_font_scale_n_thickness(img.shape[:2], scale_factor=0.8)
 
-        lbl_box, text_ccord = get_lbl_coord(bbox=bbox, lbl_text=obj[yolo_bb_format.CLASS], font=font,
-                                            lbl_scale=lbl_scale, thickness=thickness, lbl_pos=lbl_pos)
-
         _, bbox_thickness = get_font_scale_n_thickness((bbox[2]-bbox[0], bbox[3]-bbox[1]), scale_factor=1)
         cv2.rectangle(img, bbox[:2], bbox[2:4], color, bbox_thickness)
 
-        cv2.rectangle(img, lbl_box, color, -1)
-        cv2.putText(img, obj[yolo_bb_format.CLASS], text_ccord, font, lbl_scale, thickness)
+        if show_labels:
+
+            lbl_box, text_ccord = get_lbl_coord(bbox=bbox, lbl_text=obj[yolo_bb_format.CLASS], font=font,
+                                                lbl_scale=lbl_scale, thickness=thickness, lbl_pos=lbl_pos)
+
+            cv2.rectangle(img, lbl_box, color, -1)
+            cv2.putText(img, obj[yolo_bb_format.CLASS], text_ccord, font, lbl_scale, thickness)
 
 
 def get_lbl_coord(bbox, lbl_text, font, lbl_scale, thickness, lbl_pos):

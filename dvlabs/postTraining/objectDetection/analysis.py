@@ -26,7 +26,7 @@ class Analyse:
         self.class_names = gt_annos_obj.class_names
 
     def view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720), view_mistakes=False,
-             maintain_ratio=True, filter_classes=[], iou_thres=1):
+             maintain_ratio=True, filter_classes=[], iou_thres=1, show_labels=True):
 
         assert grid_size[0] >= 1 and grid_size[1] >= 1, "Grid dimensions cannot be less than 1."
         assert resolution[0] >= 1 and resolution[1] >= 1, "Resolution cannot be less than 1."
@@ -65,7 +65,7 @@ class Analyse:
         # Process batches
         for batch in batches:
             grid = self.process_grid_batch(batch, filtered_gt_annos, filtered_pred_annos, grid_size,
-                                           (resize_h, resize_w), maintain_ratio)
+                                           (resize_h, resize_w), maintain_ratio, show_labels)
 
             # Write grid frame to video or show in window
             if vid_writer is not None:
@@ -134,7 +134,8 @@ class Analyse:
 
         to_yolo(combined_mistakes_anno, save_anno_dir, self.gt_annos_obj.class_names)
 
-    def process_grid_batch(self, batch, filtered_gt_annos, filtered_pred_annos, grid_size, resize_dim, maintain_ratio):
+    def process_grid_batch(self, batch, filtered_gt_annos, filtered_pred_annos, grid_size, resize_dim, maintain_ratio,
+                           show_labels):
         batch_imgs = []
         for img_id in batch:
             # Read image
@@ -146,8 +147,8 @@ class Analyse:
             filtered_pred = filtered_pred_annos[img_id]
 
             # Display annotations on image
-            display_anno(img, filtered_gt, (0, 255, 0), lbl_pos=label_positions.BR)
-            display_anno(img, filtered_pred, (0, 255, 255), lbl_pos=label_positions.TL)
+            display_anno(img, filtered_gt, (0, 255, 0), lbl_pos=label_positions.BR, show_labels=show_labels)
+            display_anno(img, filtered_pred, (0, 255, 255), lbl_pos=label_positions.TL, show_labels=show_labels)
 
             # Add to current batch image
             batch_imgs.append(img)
