@@ -25,8 +25,8 @@ def display(img, fps=24.99, lines=[], bboxes=[], pos="tl", offset=(None, None), 
     fps_str = "FPS : {}"
 
     # Get scale and thickness of fonts
-    fps_scale, thickness = get_font_scale_n_thickness(img.shape, scale_factor=0.8)
-    line_scale, _ = get_font_scale_n_thickness(img.shape)
+    fps_scale, thickness = get_font_scale_n_thickness(img.shape[:2], scale_factor=0.8)
+    line_scale, _ = get_font_scale_n_thickness(img.shape[:2])
 
     # Get sizes of text lines
     l_sizes, max_l_width, sum_l_height = get_line_sizes(lines, font, line_scale, thickness)
@@ -169,12 +169,13 @@ def display_anno(img, img_anon, color=(0, 255, 0), font=cv2.FONT_HERSHEY_SIMPLEX
         bbox = denormalize_bbox(obj, img_anon[lib_annotation_format.IMG_WIDTH],
                                 img_anon[lib_annotation_format.IMG_HEIGHT])
 
-        lbl_scale, thickness = get_font_scale_n_thickness(img.shape, scale_factor=0.8)
+        lbl_scale, thickness = get_font_scale_n_thickness(img.shape[:2], scale_factor=0.8)
 
         lbl_box, text_ccord = get_lbl_coord(bbox=bbox, lbl_text=obj[yolo_bb_format.CLASS], font=font,
                                             lbl_scale=lbl_scale, thickness=thickness, lbl_pos=lbl_pos)
 
-        cv2.rectangle(img, bbox[:2], bbox[2:4], color, thickness)
+        _, bbox_thickness = get_font_scale_n_thickness((bbox[2]-bbox[0], bbox[3]-bbox[1]), scale_factor=1)
+        cv2.rectangle(img, bbox[:2], bbox[2:4], color, bbox_thickness)
 
         cv2.rectangle(img, lbl_box, color, -1)
         cv2.putText(img, obj[yolo_bb_format.CLASS], text_ccord, font, lbl_scale, thickness)
