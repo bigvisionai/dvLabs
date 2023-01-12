@@ -187,10 +187,13 @@ class Analyse:
         # Save mistakes annotations
         if save_dir is not None:
             with open(os.path.join(save_dir, "avg_iou_per_sample.txt"), 'w') as f:
-                for img_id, iou in zip(image_ids, avg_IOUs):
+                for img_id, avg_iou in zip(image_ids, avg_IOUs):
                     img_path = self.gt_annos[img_id][lib_annotation_format.IMG_PATH]
                     img_name = os.path.basename(img_path)
-                    f.write(f"{img_name} {round(iou, 3)}\n")
+                    if avg_iou is not None:
+                        f.write(f"{img_name} {round(avg_iou, 3)}\n")
+                    else:
+                        f.write(f"{img_name} {None}\n")
 
         plt.plot(range(0, len(image_ids)), avg_IOUs)
         plt.title('Average IOU per Sample')
