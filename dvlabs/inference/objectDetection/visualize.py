@@ -175,7 +175,7 @@ def display_anno(img, img_anon, class_names, bbox_color=(0, 0, 0), class_colors=
         bbox = denormalize_bbox(obj, img_anon[lib_annotation_format.IMG_WIDTH],
                                 img_anon[lib_annotation_format.IMG_HEIGHT])
 
-        lbl_scale, thickness = get_font_scale_n_thickness(img.shape[:2], scale_factor=0.8)
+        lbl_scale, thickness = get_font_scale_n_thickness(img.shape[:2], scale_factor=0.6)
 
         _, bbox_thickness = get_font_scale_n_thickness((bbox[2]-bbox[0], bbox[3]-bbox[1]), scale_factor=1)
         cv2.rectangle(img, bbox[:2], bbox[2:4], class_color, bbox_thickness)
@@ -187,7 +187,7 @@ def display_anno(img, img_anon, class_names, bbox_color=(0, 0, 0), class_colors=
 
             cv2.rectangle(img, lbl_box, class_color, -1)
             cv2.putText(img, obj[yolo_bb_format.CLASS], text_ccord, font, lbl_scale, txt_color,
-                        thickness=thickness)
+                        thickness=thickness, lineType=cv2.LINE_AA)
 
 
 def get_lbl_coord(bbox, lbl_text, font, lbl_scale, thickness, lbl_pos):
