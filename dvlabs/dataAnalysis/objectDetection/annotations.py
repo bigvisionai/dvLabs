@@ -83,8 +83,8 @@ class Annotations:
                 try:
                     bboxes = read_yolo_annotation_txt(annotation_file_path)
                 except Exception as e:
-                    print(f'Dropping image: {img_path}. \n{e}')
-                    continue
+                    print(f'txt not found, creating empty object: {img_path}. \n{e}')
+                    bboxes = []
 
                 for bbox in bboxes:
                     dic = {
