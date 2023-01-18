@@ -1,6 +1,8 @@
 import os
 import math
 import json
+import colorsys
+import random
 
 import numpy as np
 import cv2
@@ -251,3 +253,14 @@ def get_max_iou_with_true_label(obj, annos1, annos2):
             true_lbl = gt_obj[yolo_bb_format.CLASS]
 
     return max_iou, true_lbl
+
+
+def get_colors(num: int = 1) -> list:
+
+    random.seed(0)
+    hsv_tuples = [(x/num, random.uniform(0.4, 1.0), random.uniform(0.4, 1.0)) for x in range(num)]
+
+    rgb_tuples = list(map(lambda x: colorsys.hsv_to_rgb(*x), hsv_tuples))
+    rgb_tuples = list(map(lambda x: (x[0]*255, x[1]*255, x[2]*255), rgb_tuples))
+
+    return rgb_tuples

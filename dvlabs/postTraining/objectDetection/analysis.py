@@ -9,7 +9,7 @@ from dvlabs.postTraining.objectDetection import metrics
 from dvlabs.config import lib_annotation_format, yolo_bb_format, label_positions
 from dvlabs.inference.objectDetection.visualize import display_anno
 from dvlabs.utils import (denormalize_bbox, get_batches, get_vid_writer, create_grid, combine_img_annos,
-                          check_and_create_dir, get_max_iou_with_true_label)
+                          check_and_create_dir, get_max_iou_with_true_label, get_colors)
 
 
 class Analyse:
@@ -24,6 +24,8 @@ class Analyse:
         self.pred_dets = pred_dets_obj.annotations
 
         self.class_names = gt_annos_obj.class_names
+
+        self.class_colors = get_colors(len(gt_annos_obj.class_names))
 
     def view(self, save_dir=None, grid_size=(1, 1), resolution=(1280, 720), view_mistakes=False,
              maintain_ratio=True, filter_classes=[], iou_thres=1, show_labels=True):
@@ -147,8 +149,10 @@ class Analyse:
             filtered_pred = filtered_pred_annos[img_id]
 
             # Display annotations on image
-            display_anno(img, filtered_gt, (0, 255, 0), lbl_pos=label_positions.BR, show_labels=show_labels)
-            display_anno(img, filtered_pred, (0, 255, 255), lbl_pos=label_positions.TL, show_labels=show_labels)
+            display_anno(img, filtered_gt, self.class_names, bbox_color=0, txt_color=(255, 255, 255),
+                         lbl_pos=label_positions.BR, show_labels=show_labels)
+            display_anno(img, filtered_pred, self.class_names, txt_color=(255, 255, 255),
+                         class_colors=self.class_colors, lbl_pos=label_positions.TL, show_labels=show_labels)
 
             # Add to current batch image
             batch_imgs.append(img)
