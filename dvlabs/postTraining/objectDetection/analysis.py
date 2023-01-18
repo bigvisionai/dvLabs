@@ -42,7 +42,12 @@ class Analyse:
             # Create directory if not present
             check_and_create_dir(save_dir)
 
-            vid_writer = get_vid_writer(os.path.join(save_dir, "grid_output"), 1,
+            vid_name = "grid_output"
+
+            if view_mistakes:
+                vid_name = "mistakes"
+
+            vid_writer = get_vid_writer(os.path.join(save_dir, vid_name), 1,
                                         (resize_w*grid_size[0], resize_h*grid_size[1]))
 
         # Filter annotations
