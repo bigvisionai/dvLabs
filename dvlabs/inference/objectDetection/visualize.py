@@ -185,6 +185,15 @@ def display_anno(img, img_anon, class_names, bbox_color=(0, 0, 0), class_colors=
             lbl_box, text_ccord = get_lbl_coord(bbox=bbox, lbl_text=obj[yolo_bb_format.CLASS], font=font,
                                                 lbl_scale=lbl_scale, thickness=thickness, lbl_pos=lbl_pos)
 
+            if yolo_bb_format.CONF in (obj.keys()):
+                conf_box, conf_ccord = get_lbl_coord(bbox=bbox, lbl_text=str(obj[yolo_bb_format.CONF]), font=font,
+                                                     lbl_scale=lbl_scale, thickness=thickness,
+                                                     lbl_pos=label_positions.TR)
+
+                cv2.rectangle(img, conf_box, class_color, -1)
+                cv2.putText(img, str(obj[yolo_bb_format.CONF]), conf_ccord, font, lbl_scale, txt_color,
+                            thickness=thickness, lineType=cv2.LINE_AA)
+
             cv2.rectangle(img, lbl_box, class_color, -1)
             cv2.putText(img, obj[yolo_bb_format.CLASS], text_ccord, font, lbl_scale, txt_color,
                         thickness=thickness, lineType=cv2.LINE_AA)
