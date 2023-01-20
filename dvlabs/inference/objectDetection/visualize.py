@@ -180,6 +180,9 @@ def display_anno(img, img_anon, class_names, bbox_color=(0, 0, 0), class_colors=
         _, bbox_thickness = get_font_scale_n_thickness((bbox[2]-bbox[0], bbox[3]-bbox[1]), scale_factor=1)
         cv2.rectangle(img, bbox[:2], bbox[2:4], class_color, bbox_thickness)
 
+        if yolo_bb_format.CONF not in obj.keys():
+            mark_points(img, bbox, bbox_thickness)
+
         if show_labels:
 
             lbl_box, text_ccord = get_lbl_coord(bbox=bbox, lbl_text=obj[yolo_bb_format.CLASS], font=font,
@@ -217,3 +220,11 @@ def get_lbl_coord(bbox, lbl_text, font, lbl_scale, thickness, lbl_pos):
         text_coord = [bbox[2]-lbl_w, bbox[3]+lbl_h]
 
     return lbl_box, text_coord
+
+
+def mark_points(img, bbox, radius=3, color=0):
+    xmin, ymin, xmax, ymax = tuple(bbox)
+    cv2.circle(img, (xmin, ymin), radius, color, -1, lineType=cv2.LINE_AA)
+    cv2.circle(img, (xmin, ymax), radius, color, -1, lineType=cv2.LINE_AA)
+    cv2.circle(img, (xmax, ymin), radius, color, -1, lineType=cv2.LINE_AA)
+    cv2.circle(img, (xmax, ymax), radius, color, -1, lineType=cv2.LINE_AA)

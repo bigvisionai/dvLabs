@@ -149,7 +149,7 @@ class Analyse:
             filtered_pred = filtered_pred_annos[img_id]
 
             # Display annotations on image
-            display_anno(img, filtered_gt, self.class_names, bbox_color=0, txt_color=(255, 255, 255),
+            display_anno(img, filtered_gt, self.class_names, class_colors=self.class_colors, txt_color=(255, 255, 255),
                          lbl_pos=label_positions.BR, show_labels=show_labels)
             display_anno(img, filtered_pred, self.class_names, txt_color=(255, 255, 255),
                          class_colors=self.class_colors, lbl_pos=label_positions.TL, show_labels=show_labels)
