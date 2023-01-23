@@ -163,7 +163,7 @@ def get_offsets(pos: str, img_shape: tuple, rec_w: int, rec_h: int) -> (int, int
 
 
 def display_anno(img, img_anon, class_names, bbox_color=(0, 0, 0), class_colors=None, txt_color=(0, 0, 0),
-                 font=cv2.FONT_HERSHEY_SIMPLEX, lbl_pos=label_positions.TL, show_labels=True):
+                 font=cv2.FONT_HERSHEY_SIMPLEX, lbl_pos=label_positions.TL, show_labels=True, show_conf=True):
 
     for obj in img_anon[lib_annotation_format.OBJECTS]:
 
@@ -183,14 +183,14 @@ def display_anno(img, img_anon, class_names, bbox_color=(0, 0, 0), class_colors=
 
         if show_labels:
 
-            if yolo_bb_format.CONF in (obj.keys()):
-                show_label(img, f"{obj[yolo_bb_format.CLASS]} {obj[yolo_bb_format.CONF]}", obj, bbox, font, lbl_pos,
+            if show_conf and yolo_bb_format.CONF in (obj.keys()):
+                show_label(img, f"{obj[yolo_bb_format.CLASS]} {obj[yolo_bb_format.CONF]}", bbox, font, lbl_pos,
                            class_color, txt_color)
             else:
-                show_label(img, f"{obj[yolo_bb_format.CLASS]}", obj, bbox, font, lbl_pos, class_color, txt_color)
+                show_label(img, f"{obj[yolo_bb_format.CLASS]}", bbox, font, lbl_pos, class_color, txt_color)
 
 
-def show_label(img, text, obj, bbox, font, lbl_pos, class_color, txt_color):
+def show_label(img, text, bbox, font, lbl_pos, class_color, txt_color):
     lbl_scale, thickness = get_font_scale_n_thickness(img.shape[:2], scale_factor=0.6)
 
     lbl_box, text_ccord = get_lbl_coord(bbox=bbox, lbl_text=text, font=font,lbl_scale=lbl_scale, thickness=thickness,

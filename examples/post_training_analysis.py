@@ -29,7 +29,7 @@ pd_dets.read_yolo(img_path, det_yolo_txt_path, class_file_path)
 pt_analyser = Analyse(gt_anno, pd_dets)
 
 pt_analyser.view(grid_size=(1, 1), resolution=(1280, 720), view_mistakes=False, maintain_ratio=True, filter_classes=[],
-                 iou_thres=1, show_labels=True)
+                 iou_thres=1, show_labels=True, show_conf=True)
 
 pt_analyser.avg_iou_per_sample(save_dir=project_root)
 
