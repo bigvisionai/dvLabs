@@ -134,7 +134,7 @@ def create_grid(imgs, grid_size, resize_shape, maintain_ratio):
             try:
                 img = imgs[count]
             except IndexError:
-                img = np.zeros(shape=[100, 100, 3], dtype=np.uint8)
+                img = np.full(shape=[100, 100, 3], fill_value=114, dtype=np.uint8)
             img = resize_and_pad(img, resize_shape, maintain_ratio)
             row.append(img)
             count += 1
