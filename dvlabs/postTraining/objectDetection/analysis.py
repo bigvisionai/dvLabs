@@ -65,22 +65,30 @@ class Analyse:
         batches = get_batches(filtered_image_ids, batch_size)
 
         # Process batches
-        for batch in batches:
-            grid = self.process_grid_batch(batch, filtered_gt_annos, filtered_pred_annos, grid_size,
+        batch_idx = 0
+        while True:
+            grid = self.process_grid_batch(batches[batch_idx], filtered_gt_annos, filtered_pred_annos, grid_size,
                                            (resize_h, resize_w), maintain_ratio, show_labels)
 
             # Write grid frame to video or show in window
             if vid_writer is not None:
                 vid_writer.write(grid)
+                if batch_idx == (len(batches) - 1):  # If last frame
+                    # Release video writer
+                    vid_writer.release()
+                    break
+                batch_idx += 1
             else:
                 cv2.imshow('grid', grid)
                 key = cv2.waitKey(0)
-                if key == 27 or key == ord('q'):
+                if key == 27 or key == ord('q'):  # Esc or 'Q' to exit the grid view
                     break
-
-        # Release video writer
-        if vid_writer is not None:
-            vid_writer.release()
+                elif key == 97:  # 'A' for previous frame
+                    if batch_idx > 0:
+                        batch_idx -= 1
+                elif key == 100:  # 'D' for next frame
+                    if batch_idx < (len(batches)-1):
+                        batch_idx += 1
 
     def filter_anno(self, filter_classes, iou_thres, view_mistakes):
 
