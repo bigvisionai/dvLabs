@@ -66,6 +66,7 @@ class Compare:
                 cv2.imshow('grid', combined_grid)
                 key = cv2.waitKey(0)
                 if key == 27 or key == ord('q'):  # Esc or 'Q' to exit the grid view
+                    cv2.destroyWindow('grid')
                     break
                 elif key == 97:  # 'A' for previous frame
                     if batch_idx > 0:
