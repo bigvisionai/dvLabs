@@ -34,50 +34,42 @@ class Compare:
             vid_writer = get_vid_writer(os.path.join(save_dir, vid_name), 1,
                                         (indv_res[0] * grid_size[0], indv_res[1] * grid_size[1]))
 
-        grid_frames1 = self.get_frames(self.anal_obj1, filter_classes, iou_thres, indv_res, maintain_ratio,
-                                       show_labels, show_conf)
-        grid_frames2 = self.get_frames(self.anal_obj1, filter_classes, iou_thres, indv_res, maintain_ratio,
-                                       show_labels, show_conf)
+        image_ids, filtered_gt_annos1, filtered_pred_annos1, _ \
+            = self.anal_obj1.filter_anno(filter_classes, iou_thres, view_mistakes=False)
 
-        frame_idx = 0
+        image_ids, filtered_gt_annos2, filtered_pred_annos2, _ \
+            = self.anal_obj2.filter_anno(filter_classes, iou_thres, view_mistakes=False)
+
+        batches = get_batches(image_ids, 1)
+        batch_idx = 0
 
         while True:
-            frame1 = grid_frames1[frame_idx]
-            frame2 = grid_frames2[frame_idx]
+            frame1 = self.anal_obj1.process_grid_batch(batches[batch_idx], filtered_gt_annos1, filtered_pred_annos1,
+                                                       (1, 1), (indv_res[1], indv_res[0]), maintain_ratio, show_labels,
+                                                       show_conf)
+
+            frame2 = self.anal_obj2.process_grid_batch(batches[batch_idx], filtered_gt_annos2, filtered_pred_annos2,
+                                                       (1, 1), (indv_res[1], indv_res[0]), maintain_ratio, show_labels,
+                                                       show_conf)
 
             combined_grid = create_grid([frame1, frame2], grid_size, (indv_res[1], indv_res[0]), maintain_ratio)
 
             # Write grid frame to video or show in window
             if vid_writer is not None:
                 vid_writer.write(combined_grid)
-                if frame_idx == (len(grid_frames1) - 1):  # If last frame
+                if batch_idx == (len(batches) - 1):  # If last frame
                     # Release video writer
                     vid_writer.release()
                     break
-                frame_idx += 1
+                batch_idx += 1
             else:
                 cv2.imshow('grid', combined_grid)
                 key = cv2.waitKey(0)
                 if key == 27 or key == ord('q'):  # Esc or 'Q' to exit the grid view
                     break
                 elif key == 97:  # 'A' for previous frame
-                    if frame_idx > 0:
-                        frame_idx -= 1
+                    if batch_idx > 0:
+                        batch_idx -= 1
                 elif key == 100:  # 'D' for next frame
-                    if frame_idx < (len(grid_frames1) - 1):
-                        frame_idx += 1
-
-    def get_frames(self, anal_obj, filter_classes, iou_thres, indv_res, maintain_ratio, show_labels, show_conf):
-        filtered_image_ids, filtered_gt_annos, filtered_pred_annos, combined_mistakes_anno \
-            = anal_obj.filter_anno(filter_classes, iou_thres, view_mistakes=False)
-
-        batches = get_batches(filtered_image_ids, 1)
-
-        grid_frames = []
-
-        for batch in batches:
-            grid = anal_obj.process_grid_batch(batch, filtered_gt_annos, filtered_pred_annos, (1, 1),
-                                               (indv_res[1], indv_res[0]), maintain_ratio, show_labels, show_conf)
-            grid_frames.append(grid)
-
-        return grid_frames
+                    if batch_idx < (len(batches) - 1):
+                        batch_idx += 1
